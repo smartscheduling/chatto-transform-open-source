@@ -1,0 +1,5 @@
+__pycache__
+chatto_transform/config/*
+sftp-config.json
+.DS_Store
+_mimic_login.db
