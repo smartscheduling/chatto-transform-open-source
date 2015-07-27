@@ -3,4 +3,4 @@ chatto_transform/config/*
 sftp-config.json
 .DS_Store
 _mimic_login.db
-.ipynb_checkpoints
+notebooks/.ipynb_checkpoints
