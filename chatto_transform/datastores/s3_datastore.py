@@ -1,5 +1,7 @@
 from .datastore_base import DataStore
-from .csv_datastore import CSVDataStore
+from .hdf_datastore import HdfDataStore
+
+from ..lib import temp_file
 
 from boto.s3.key import Key
 
@@ -8,34 +10,44 @@ import io
 class S3DataStore(DataStore):
     def __init__(self, schema, boto_bucket):
         self.boto_bucket = boto_bucket
-        super.__init__(schema)
+        super().__init__(schema)
 
     def storage_target(self):
-        return 'csv'
+        return 'hdf'
 
     def _store(self, df):
-        k = Key(self.boto_bucket)
-        k.key = self.schema.name
+        tmp_path = temp_file.make_temporary_file()
+        with temp_file.deleting(tmp_path):
+            print('storing to temp hdf')
+            store = HdfDataStore(self.schema, tmp_path)
+            store._store(df)
 
-        with io.StringIO() as f:
-            store = CSVDataStore(f, self.schema)
-            store.store(df)
+            print('saving to s3')
+            store_file_to_s3(self.boto_bucket, self.schema.name, tmp_path)
 
-            f.seek(0)
-
-            k.set_contents_from_file(f, encrypt_key=True)
+    def _store_chunks(self, chunks):
+        pass
 
     def _load(self):
-        k = Key(self.boto_bucket)
-        k.key = self.schema.name
+        tmp_path = temp_file.make_temporary_file()
+        with temp_file.deleting(tmp_path):
+            print('loading from s3')
+            load_file_from_s3(self.boto_bucket, self.schema.name, tmp_path)
 
-        with io.StringIO() as f:
-            k.get_contents_to_file(f)
-
-            f.seek(0)
-
-            store = CSVDataStore(f, self.schema)
-            return store.load()
+            print('loading from hdf')
+            store = HdfDataStore(self.schema, tmp_path)
+            return store._load()
             
     def delete(self):
         self.boto_bucket.delete_key(self.schema.name)
+
+
+def store_file_to_s3(bucket, key_name, file_path):
+    k = Key(bucket)
+    k.key = key_name
+    k.set_contents_from_filename(file_path)
+
+def load_file_from_s3(bucket, key_name, file_path):
+    k = Key(bucket)
+    k.key = key_name
+    k.get_contents_to_filename(file_path)

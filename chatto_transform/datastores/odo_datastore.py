@@ -26,7 +26,7 @@ def _(self):
 def _(self):
     return "'{}': units['microsecond']".format(self.name)
 
-@period.register_metadata('odo')
+@big_dt.register_metadata('odo')
 def _(self):
     return "'{}': datetime".format(self.name)
 

@@ -8,6 +8,7 @@ except ImportError:
 
 from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
+from chatto_transform.datastores.caching_datastore import CachingDatastore
 
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
@@ -65,6 +66,7 @@ def slugify(value):
     return re.sub('[-\s]+', '-', value)
 
 def load_table(schema, condition=None):
+    loader = _get_table_loader(schema, condition)
     local_storage_dir = get_local_storage_dir()
     if local_storage_dir:
         query_f_name = schema.name
@@ -72,21 +74,16 @@ def load_table(schema, condition=None):
             query_f_name += '_' + condition
         query_f_name +='.hdf'
         query_f_name = os.path.join(local_storage_dir, query_f_name)
-        ds = HdfDataStore(schema, query_f_name, fixed=True)
-        if os.path.isfile(query_f_name):
-            table = ds.load()
-            return table
+        cache = HdfDataStore(schema, query_f_name, fixed=True)
         
-        table = _load_table(schema, condition)
-        ds.store(table)
-        return table
+        ds = CachingDatastore(schema, loader, cache)
+        return ds.load()
     else:
-        return _load_table(schema, condition)
+        return loader.load()
     
-def _load_table(schema, condition=None):
+def _get_table_loader(schema, condition=None):
     if condition is not None:
         condition = [text(condition)]
     loader = SATableDataStore(schema, get_engine(), condition)
-    table = loader.load()
-    return table
+    return loader
 

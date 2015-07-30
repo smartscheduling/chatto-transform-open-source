@@ -43,6 +43,9 @@ class DataStore:
     def delete(self):
         raise NotImplementedError()
 
+    def exists(self):
+        raise NotImplementedError()
+
     def _load(self):
         raise NotImplementedError()
 

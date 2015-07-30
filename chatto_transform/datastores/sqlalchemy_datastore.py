@@ -79,7 +79,7 @@ def _(self):
 def _(self):
     return sql.schema.Column(self.name, sql.sqltypes.Interval, nullable=True)
 
-@period.register_metadata('sqlalchemy')
+@big_dt.register_metadata('sqlalchemy')
 def _(self):
     return sql.schema.Column(self.name, sql.sqltypes.DateTime(timezone=True), nullable=True)
 
@@ -174,9 +174,11 @@ def fast_mysql_to_df(table, schema):
         if isinstance(col, dt):
             # converting datetime column
             df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
-        if isinstance(col, period):
-            # converting period column
-            df[col.name] = df[col.name].map(partial(datetime.datetime.strptime, format="%Y-%m-%d %H:%M:%S"))
+        if isinstance(col, big_dt):
+            # converting big_dt column
+            strptime = datetime.datetime.strptime
+            parse_func = (lambda x: strptime(x, "%Y-%m-%d %H:%M:%S"))
+            df[col.name] = df[col.name].map(parse_func, na_action='ignore')
     return df
 
 def fast_postgresql_to_df(table, schema):
@@ -197,8 +199,8 @@ def fast_postgresql_to_df(table, schema):
                 if isinstance(col, dt):
                     # converting datetime column
                     df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
-                if isinstance(col, period):
-                    # converting period column
+                if isinstance(col, big_dt):
+                    # converting big_dt column
                     strptime = datetime.datetime.strptime
                     parse_func = (lambda x: strptime(x, "%Y-%m-%d %H:%M:%S"))
                     df[col.name] = df[col.name].map(parse_func, na_action='ignore')

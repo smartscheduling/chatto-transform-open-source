@@ -1,9 +1,9 @@
 from ..transform_base import Transform
 
 class CachingTransform(Transform):
-    def __init__(self, transform, datastore_factory, update=False):
+    def __init__(self, transform, chache_store, update=False):
         self.transform_obj = transform_obj
-        self.datastore_factory = datastore_factory
+        self.cache_store = cache_store
         self.update = update
 
     def input_schema(self):
@@ -19,12 +19,14 @@ class CachingTransform(Transform):
         return self.transform_obj._transform(data)
 
     def transform(self, data):
+        if self.cache_store.exists():
+            return self.cache_store._load()
+
         result = super().transform(data)
 
-        datastore = self.datastore_factory(self.output_schema())
         if self.update:
-            datastore.update(result)
+            self.cache_store.update(result)
         else:
-            datastore.store(result)
+            self.cache_store.store(result)
 
         return result

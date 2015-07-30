@@ -10,7 +10,7 @@ import os.path
 
 import time
 
-for col_type in [dt, delta, period, num, bool_]:
+for col_type in [dt, delta, big_dt, num, bool_]:
     col_type._storage_target_registry['hdf'] = col_type._storage_target_registry['pandas'].copy()    
 
 @cat.register_check('hdf')
@@ -31,16 +31,16 @@ def _(col):
 def _(col):
     return col.astype('float64')
 
-@period.register_check('hdf')
+@big_dt.register_check('hdf')
 def _(col):
     return col.dtype == 'float64'
 
-@period.register_transform('hdf')
+@big_dt.register_transform('hdf')
 def _(col):
     return col.map(datetime.datetime.timestamp, na_action='ignore')
 
 class HdfDataStore(DataStore):
-    def __init__(self, schema, hdf_file, fixed=False):
+    def __init__(self, schema, hdf_file, fixed=True):
         self.hdf_file = hdf_file
         self.fixed = fixed
         super().__init__(schema)
@@ -54,8 +54,8 @@ class HdfDataStore(DataStore):
     def _load(self):
         df = pandas.read_hdf(self.hdf_file, self.schema.name)
         for col in self.schema.cols:
-            if isinstance(col, period):
-                # converting period column
+            if isinstance(col, big_dt):
+                # converting big_dt column
                 df[col.name] = df[col.name].map(datetime.datetime.fromtimestamp, na_action='ignore')
         if df is None:
             return None
@@ -70,8 +70,8 @@ class HdfDataStore(DataStore):
 
             chunk = pandas.read_hdf(f, self.schema.name)
             for col in self.schema.cols:
-                if isinstance(col, period):
-                    # converting period column
+                if isinstance(col, big_dt):
+                    # converting big_dt column
                     chunk[col.name] = chunk[col.name].map(datetime.datetime.fromtimestamp, na_action='ignore')
             yield chunk
 
@@ -80,7 +80,7 @@ class HdfDataStore(DataStore):
             raise ValueError("Cannot store an empty dataframe in HDF5 format.")
         hdf_format = 'fixed' if self.fixed else 'table'
 
-        df.to_hdf(self.hdf_file, self.schema.name, format=hdf_format, mode='a')
+        df.to_hdf(self.hdf_file, self.schema.name, format=hdf_format, mode='a', complevel=9, complib='blosc')
 
     def _store_chunks(self, chunks):
         hdf_format = 'fixed' if self.fixed else 'table'
@@ -146,6 +146,9 @@ class HdfDataStore(DataStore):
         
         #storing updated rows
         self._store(combined_df)
+
+    def exists(self):
+        return os.path.isfile(self.hdf_file)
 
     def delete(self):
         with suppress(FileNotFoundError, IsADirectoryError):

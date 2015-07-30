@@ -320,16 +320,15 @@ def _(col):
 
 ###############################################################################
 
-class period(Column):
+class big_dt(Column):
     pass
 
-@period.register_check('pandas')
+@big_dt.register_check('pandas')
 def _(col):
     return col.dtype == 'object'
 
-@period.register_transform('pandas')
-def col_to_period(col):
-    import pdb; pdb.set_trace()
+@big_dt.register_transform('pandas')
+def col_to_big_dt(col):
     return col.map(dateutil.parser.parse, na_action='ignore')
 
 ###############################################################################
