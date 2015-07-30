@@ -67,3 +67,8 @@ You must have permission to access the MIMIC database already, and you should ha
   NOTE: never let your username and password get online. Chatto-transform will not let you commit anything inside the `config/` directory to git. Make sure your password doesn't show up anywhere else in the code.
 
 - Save it and you should be good to go. Before using any of the MIMIC transforms or trying to load mimic tables, remember to call `session.login()`.
+ 
+
+# Demo Notebook
+
+See a demo notebook demonstrating basic functionality with MIMIC data: https://github.com/smartscheduling/chatto-transform-open-source/blob/master/notebooks/Chatto-Transform%20Mimic%20Demo.ipynb
