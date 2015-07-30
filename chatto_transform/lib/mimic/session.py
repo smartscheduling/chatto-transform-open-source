@@ -8,7 +8,7 @@ except ImportError:
 
 from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
-from chatto_transform.datastores.caching_datastore import CachingDatastore
+from chatto_transform.datastores.caching_datastore import CachingDataStore
 
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
@@ -76,7 +76,7 @@ def load_table(schema, condition=None):
         query_f_name = os.path.join(local_storage_dir, query_f_name)
         cache = HdfDataStore(schema, query_f_name, fixed=True)
         
-        ds = CachingDatastore(schema, loader, cache)
+        ds = CachingDataStore(schema, loader, cache)
         return ds.load()
     else:
         return loader.load()
