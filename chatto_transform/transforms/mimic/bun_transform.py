@@ -41,10 +41,9 @@ class BUNTransform(Transform):
         labevents = tables['labevents']
         d_patients = tables['d_patients']
 
-        input_schema = self.input_schema()
-
-        input_schema['labevents'].add_prefix(labevents)
-        input_schema['d_patients'].add_prefix(d_patients)
+        
+        labevents_schema.add_prefix(labevents)
+        d_patients_schema.add_prefix(d_patients)
 
         df = pd.merge(labevents, d_patients, how='left',
             left_on='labevents.subject_id', right_on='d_patients.subject_id')

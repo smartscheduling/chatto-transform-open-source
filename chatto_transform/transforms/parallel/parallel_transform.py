@@ -92,7 +92,7 @@ class ParallelTransform(Transform):
     def prepare_jobs(self, data, disable_splits=False):
         ids = list(data[self.group_index].unique())
 
-        if len(data) < self.min_rows_split or len(ids) < self.split_bins * self.min_rows_split:
+        if len(data) < self.min_rows_split or len(ids) < self.split_bins:
             return self.prepare_transform_jobs(data, ids)
         else:
             return self.prepare_split_jobs(data, ids)

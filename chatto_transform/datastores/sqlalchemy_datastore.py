@@ -206,6 +206,18 @@ def fast_postgresql_to_df(table, schema):
                     df[col.name] = df[col.name].map(parse_func, na_action='ignore')
     return df
 
+def fast_postgresql_to_csv(table, file_path):
+    engine = table.bind
+    conn = engine.raw_connection()
+    with conn.cursor() as cur:
+        with open(file_path, 'w') as f:
+            table_name = str(table)
+            if not isinstance(table, Table):
+                table_name = '({})'.format(table_name)
+            sql = "COPY {table_name} TO STDOUT WITH (FORMAT CSV, HEADER TRUE)".format(
+                table_name=table_name)
+            cur.copy_expert(sql, f)
+
 def fast_df_to_sql(df, table, schema):
     ods = OdoDataStore(schema, table, storage_target_type='sqlalchemy')
     ods.store(df)
@@ -229,6 +241,17 @@ class SATableDataStore(DataStore):
 
         df = fast_sql_to_df(query, self.schema)
         return df
+
+    def to_csv(self, file_path):
+        if self.engine.dialect.name != 'postgresql':
+            raise NotImplementedError('converting directly to csv not supported for non-postgres databases')
+        query = self.table
+        if self.where_clauses is not None:
+            query = query.select()
+            for where_clause in self.where_clauses:
+                query = query.where(where_clause)
+
+        fast_postgresql_to_csv(query, file_path)
 
     def _store(self, df):
         if self.where_clauses is not None:

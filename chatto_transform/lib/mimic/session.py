@@ -8,6 +8,7 @@ except ImportError:
 
 from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
+from chatto_transform.datastores.csv_datastore import CsvDataStore
 from chatto_transform.datastores.caching_datastore import CachingDataStore
 
 from sqlalchemy import create_engine
@@ -87,3 +88,14 @@ def _get_table_loader(schema, condition=None):
     loader = SATableDataStore(schema, get_engine(), condition)
     return loader
 
+def store_csv(file_path, schema, condition=None):
+    loader = _get_table_loader(schema, condition)
+    loader.to_csv(file_path)
+
+def df_to_csv(file_path, df, schema):
+    store = CsvDataStore(schema, file_path)
+    store.store(df)
+
+def df_to_hdf5(file_path, df, schema):
+    store = HdfDataStore(schema, file_path)
+    store.store(df)
