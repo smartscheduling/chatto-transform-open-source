@@ -143,6 +143,9 @@ class PartialSchema(Schema):
         super().__init__(name, cols, options)
 
     def conform_df(self, df, storage_target='pandas', skip_sort=False, add_prefix=False):
+        if df is None:
+            return
+
         if not set(df.columns) >= set(self.col_names()):
             missing = set(self.col_names()) - set(df.columns) 
             raise TypeError('some columns missing form partial schema: {}'.format(missing))
@@ -162,6 +165,22 @@ class PartialSchema(Schema):
 
         if add_prefix:
             self.add_prefix(df)
+
+    @classmethod
+    def from_df(cls, df):
+        cols = []
+        for column in df.columns:
+            if df[column].dtype in ('float64', 'int64'):
+                cols.append(num(column))
+            elif df[column].dtype == 'datetime64[ns]':
+                cols.append(dt(column))
+            else:
+                cols.append(obj(column))
+        return cls(cols=cols)
+
+    @classmethod
+    def from_schema(cls, schema):
+        return cls(schema.name, schema.cols, schema.options)
 
 class MultiSchema:
     def __init__(self, schema_dict):
@@ -283,14 +302,14 @@ class id_(Column):
 
 @id_.register_check('pandas')
 def _(col):
-    return hasattr(col, 'cat') and col.cat.categories.dtype in ['object', 'int64']
+    return col.dtype in ('int64', 'float64')
 
 @id_.register_transform('pandas')
 def _(col):
-    col = col.astype('category')
-    if col.cat.categories.dtype == 'float64':
-        col = col.cat.set_categories(col.cat.categories.map(int))
-    return col
+    try:
+        return col.astype('int64')
+    except ValueError:
+        return col.astype('float64')
     
 ###############################################################################
 
