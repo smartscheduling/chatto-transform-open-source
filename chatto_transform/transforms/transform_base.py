@@ -13,6 +13,7 @@ class Transform:
         raise NotImplementedError()
 
     def transform(self, data):
+        data = data.copy()
         self.input_schema().conform_df(data)
         result = self._transform(data)
         self.output_schema().conform_df(result)
