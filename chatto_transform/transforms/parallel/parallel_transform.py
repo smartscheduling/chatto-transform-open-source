@@ -9,9 +9,9 @@ import string
 import pandas
 from sklearn.externals import joblib
 
-from ...config import config
-from ...schema.schema_base import Schema
-from ..transform_base import Transform
+from chatto_transform.config import config
+from chatto_transform.schema.schema_base import Schema
+from chatto_transform.transforms.transform_base import Transform
 
 """Library for executing transforms in parallel.
 
@@ -40,7 +40,7 @@ def expanding_groups(iterable, min_size=1):
         yield values[:l]
 
 class ParallelTransform(Transform):
-    def __init__(self, transform, group_index, split_bins=3, min_rows_split=1024, group_rows_hint=None, n_jobs=-1):
+    def __init__(self, transform, group_index, split_bins=4, min_rows_split=1024, group_rows_hint=None, n_jobs=-1):
         self.transform_obj = transform
         self.group_index = group_index
         self.split_bins = split_bins

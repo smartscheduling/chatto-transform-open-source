@@ -1,4 +1,4 @@
-from ..schema.schema_base import *
+from chatto_transform.schema.schema_base import *
 
 class Transform:
     """Base class for the Transform abstraction.

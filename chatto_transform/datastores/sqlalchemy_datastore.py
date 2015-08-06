@@ -1,8 +1,7 @@
 import pandas
-from ..schema.schema_base import *
-from .datastore_base import DataStore
-from .odo_datastore import OdoDataStore
-from ..config import config
+from chatto_transform.schema.schema_base import *
+from chatto_transform.datastores.datastore_base import DataStore
+from chatto_transform.datastores.odo_datastore import OdoDataStore
 
 from functools import lru_cache, partial
 
@@ -20,7 +19,6 @@ import tempfile
 import time
 import os
 import datetime
-import ciso8601
 import odo
 
 metadatas = {}
@@ -147,6 +145,8 @@ def fast_sql_to_df(table, schema):
     return df
 
 def fast_mysql_to_df(table, schema):
+    from chatto_transform.config import config
+
     f = tempfile.NamedTemporaryFile('w', suffix='.csv', dir=config.data_dir+'tmp')
     try:
         f.close()

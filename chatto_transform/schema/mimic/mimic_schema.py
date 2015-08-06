@@ -1,4 +1,4 @@
-from ..schema_base import *
+from chatto_transform.schema.schema_base import *
 
 ioevents_schema = Schema("ioevents", [
     id_("subject_id"),

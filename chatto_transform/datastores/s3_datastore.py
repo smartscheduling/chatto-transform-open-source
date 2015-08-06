@@ -1,7 +1,7 @@
-from .datastore_base import DataStore
-from .hdf_datastore import HdfDataStore
+from chatto_transform.datastores.datastore_base import DataStore
+from chatto_transform.datastores.hdf_datastore import HdfDataStore
 
-from ..lib import temp_file
+from chatto_transform.lib import temp_file
 
 from boto.s3.key import Key
 

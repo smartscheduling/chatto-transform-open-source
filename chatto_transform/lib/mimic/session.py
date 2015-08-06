@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 
 import pandas as pd
+from IPython.display import FileLink
 
 import shelve
 import unicodedata
@@ -91,11 +92,14 @@ def _get_table_loader(schema, condition=None):
 def store_csv(file_path, schema, condition=None):
     loader = _get_table_loader(schema, condition)
     loader.to_csv(file_path)
+    return FileLink(file_path, result_html_prefix='Right-click and save: ')
 
 def df_to_csv(file_path, df, schema):
     store = CsvDataStore(schema, file_path)
     store.store(df)
+    return FileLink(file_path, result_html_prefix='Right-click and save: ')
 
 def df_to_hdf5(file_path, df, schema):
     store = HdfDataStore(schema, file_path)
     store.store(df)
+    return FileLink(file_path, result_html_prefix='Right-click and save: ')

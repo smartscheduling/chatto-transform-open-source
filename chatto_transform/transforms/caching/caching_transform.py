@@ -1,4 +1,4 @@
-from ..transform_base import Transform
+from chatto_transform.transforms.transform_base import Transform
 
 class CachingTransform(Transform):
     def __init__(self, transform, chache_store, update=False):

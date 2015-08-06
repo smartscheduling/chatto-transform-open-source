@@ -1,9 +1,9 @@
-from ..schema.schema_base import *
+from chatto_transform.schema.schema_base import *
 import tempfile
 import os
 import stat
 
-from .datastore_base import DataStore
+from chatto_transform.datastores.datastore_base import DataStore
 
 from psycopg2.extras import Json as psycopg2_json
 import time

@@ -1,4 +1,4 @@
-from ..transform_base import Transform
+from chatto_transform.transforms.transform_base import Transform
 
 pipeline_type_error_msg = """Invalid transform list: Transform {i1}'s output schema does not match Transform {i2}'s input schema.
 {i1} output schema: {i1s}

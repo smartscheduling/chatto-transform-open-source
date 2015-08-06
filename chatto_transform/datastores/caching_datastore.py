@@ -1,4 +1,4 @@
-from .datastore_base import DataStore
+from chatto_transform.datastores.datastore_base import DataStore
 
 class CachingDataStore(DataStore):
     def __init__(self, schema, load_ds, cache_ds):
