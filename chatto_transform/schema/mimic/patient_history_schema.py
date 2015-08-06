@@ -6,3 +6,10 @@ patient_history_schema = Schema('patient_history', [
     cat('category'),
     num('valuenum')
 ])
+
+patient_history_relative_time_schema = Schema('patient_history_relative_time', [
+    id_('subject_id'),
+    delta('charttime'),
+    cat('category'),
+    num('valuenum')
+])

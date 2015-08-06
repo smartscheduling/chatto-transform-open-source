@@ -11,6 +11,10 @@ class CachingDataStore(DataStore):
             return self.cache_ds.load()
 
         df = self.load_ds.load()
-        self.cache_ds.store(df)
+        
+        try:
+            self.cache_ds.store(df)
+        except ValueError:
+            return df
 
         return df
