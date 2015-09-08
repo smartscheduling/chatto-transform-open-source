@@ -1,7 +1,7 @@
 from chatto_transform.transforms.transform_base import Transform
 
 from chatto_transform.schema import schema_base as sb
-from chatto_transform.schema.mimic.mimic_schema import labevents_schema, d_patients_schema
+from chatto_transform.schema.mimic.mimic_schema import labevents_schema, patients_schema
 
 from chatto_transform.lib.mimic.session import load_table
 
@@ -23,32 +23,30 @@ class BUNTransform(Transform):
     def input_schema(self):
         return sb.MultiSchema({
             'labevents': labevents_schema,
-            'd_patients': d_patients_schema
+            'patients': patients_schema
         })
 
     def _load(self):
         """Load the two tables (labevents and d_patients) separately.
         Since labevents is a very large table we select a subset of it before loading."""
+        bun_labevents = load_table(labevents_schema, "itemid=51006") #"itemid=50177")
+        patients = load_table(patients_schema)
 
-        bun_labevents = load_table(labevents_schema, "itemid=50177")
-        d_patients = load_table(d_patients_schema)
-
-        return {'labevents': bun_labevents, 'd_patients': d_patients}
+        return {'labevents': bun_labevents, 'patients': patients}
 
     def _transform(self, tables):
         """Join the two tables on subject_id and convert their age to years,
         cutting off at <15 and >100"""
         labevents = tables['labevents']
-        d_patients = tables['d_patients']
+        patients = tables['patients']
 
-        
         labevents_schema.add_prefix(labevents)
-        d_patients_schema.add_prefix(d_patients)
+        patients_schema.add_prefix(patients)
 
-        df = pd.merge(labevents, d_patients, how='left',
-            left_on='labevents.subject_id', right_on='d_patients.subject_id')
+        df = pd.merge(labevents, patients, how='left',
+            left_on='labevents.subject_id', right_on='patients.subject_id')
 
-        age = df['labevents.charttime'] - df['d_patients.dob']
+        age = df['labevents.charttime'] - df['patients.dob']
         age = age / np.timedelta64(1, 'Y') #convert to years
         age = np.floor(age) #round to nearest year
         df['age_at_labevent'] = age

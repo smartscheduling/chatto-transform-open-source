@@ -1,7 +1,7 @@
 from chatto_transform.transforms.transform_base import Transform
 
 from chatto_transform.schema import schema_base as sb
-from chatto_transform.schema.mimic.mimic_schema import admissions_schema, d_patients_schema
+from chatto_transform.schema.mimic.mimic_schema import admissions_schema, patients_schema
 
 from chatto_transform.lib.mimic.session import load_table
 
@@ -30,7 +30,7 @@ class AgeTransform(Transform):
     def input_schema(self):
         return sb.MultiSchema({
             'admissions': admissions_schema,
-            'd_patients': d_patients_schema
+            'patients': patients_schema
         })
 
     def _load(self):
@@ -38,25 +38,25 @@ class AgeTransform(Transform):
         since both are relatively small and can be efficiently joined in memory."""
 
         admissions = load_table(admissions_schema)
-        d_patients = load_table(d_patients_schema)
+        patients = load_table(patients_schema)
 
-        return {'admissions': admissions, 'd_patients': d_patients}
+        return {'admissions': admissions, 'patients': patients}
 
     def _transform(self, tables):
         """Join the two tables on subject_id and convert their age to years,
         cutting off at <15 and >100"""
         admissions = tables['admissions']
-        d_patients = tables['d_patients']
+        patients = tables['patients']
 
         input_schema = self.input_schema()
 
         input_schema['admissions'].add_prefix(admissions)
-        input_schema['d_patients'].add_prefix(d_patients)
+        input_schema['patients'].add_prefix(patients)
 
-        df = pd.merge(admissions, d_patients, how='left',
-            left_on='admissions.subject_id', right_on='d_patients.subject_id')
+        df = pd.merge(admissions, patients, how='left',
+            left_on='admissions.subject_id', right_on='patients.subject_id')
 
-        df['age_at_admission'] = df['admissions.admit_dt'] - df['d_patients.dob']
+        df['age_at_admission'] = df['admissions.admittime'] - df['patients.dob']
         df['age_at_admission'] = df['age_at_admission'] / np.timedelta64(1, 'Y') #convert to years
         df['age_at_admission'] = np.floor(df['age_at_admission']) #round to nearest year
 

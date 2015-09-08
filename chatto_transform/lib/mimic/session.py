@@ -1,10 +1,11 @@
 import chatto_transform.config
 
 try:
-    from chatto_transform.config import mimic_config
+    from chatto_transform.config import mimic_config, config
 except ImportError:
     print('config/mimic_config.py not found. You will be unable to log into the database until you create this file.')
     mimic_config = None
+    config = None
 
 from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
@@ -26,6 +27,7 @@ class MimicLoginException(Exception):
     pass
 
 def create_engine_config(username, password):
+    return config.mimic_psql_config
     engine_config_template = 'postgresql://{username}:{password}@mimic.coh8b3jmul4y.us-west-2.rds.amazonaws.com:5432/mimic2v26'
     engine_config = engine_config_template.format(username=username, password=password)
     return engine_config
@@ -44,6 +46,7 @@ def get_session_path():
     return os.path.join(chatto_transform.config.__path__._path[0], '_mimic_session')
 
 def get_engine():
+    return create_engine(config.mimic_psql_config)
     with shelve.open(get_session_path()) as db:
         if 'engine_config' not in db:
             raise MimicLoginException('Must be logged in to access the database. Use login().')
@@ -103,3 +106,14 @@ def df_to_hdf5(file_path, df, schema):
     store = HdfDataStore(schema, file_path)
     store.store(df)
     return FileLink(file_path, result_html_prefix='Right-click and save: ')
+
+def load_csv(file_path, schema):
+    store = CsvDataStore(schema, file_path)
+    df = store.load()
+    return df
+
+def load_hdf(file_path, schema):
+    store = HdfDataStore(schema, file_path)
+    df = store.load()
+    return df
+    

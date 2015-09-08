@@ -1,6 +1,7 @@
 import pandas
 from chatto_transform.schema.schema_base import *
 from chatto_transform.datastores.datastore_base import DataStore
+from chatto_transform.lib.chunks import CHUNK_SIZE, from_chunks
 
 import odo
 import datashape
@@ -51,18 +52,23 @@ class OdoDataStore(DataStore):
     def storage_target(self):
         return self.storage_target_type
 
-    def _load(self):
+    def load(self):
         seq = odo.odo(self.odo_target, odo.chunks(pandas.DataFrame),
-            chunksize=65536)
-            #dshape=schema_to_dshape(self.schema))
+            chunksize=CHUNK_SIZE,
+            dshape=schema_to_dshape(self.schema))
+        
+        def conv_chunks(chunks):
+            for chunk in chunks:
+                print('typechecking a chunk')
+                self.schema.conform_df(chunk, skip_sort=True)
+                yield chunk
 
         print('concatenating df chunks')
-        df = pandas.concat(seq, ignore_index=True)
-        print('typechecking and sorting')
+        df = from_chunks(conv_chunks(seq))
+        
         return df
 
     def _store(self, df):
-        #self.schema.conform_df(df, storage_target=self.storage_target_type, skip_sort=True)
         odo.odo(df, self.odo_target) #, dshape=schema_to_dshape(self.schema))        
 
 

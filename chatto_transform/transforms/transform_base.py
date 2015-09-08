@@ -16,6 +16,7 @@ class Transform:
         data = data.copy()
         self.input_schema().conform_df(data)
         result = self._transform(data)
+        del data
         self.output_schema().conform_df(result)
         return result
 

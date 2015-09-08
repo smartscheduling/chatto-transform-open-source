@@ -7,6 +7,7 @@ from chatto_transform.lib import temp_file
 from boto.s3.key import Key
 
 import io
+from itertools import count
 
 class S3DataStore(DataStore):
     def __init__(self, schema, boto_bucket):

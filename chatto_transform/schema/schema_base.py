@@ -85,6 +85,28 @@ class Schema:
 
         return new_schema
 
+    @classmethod
+    def subset(cls, schema, new_name=None, keep_cols=None, options=None):
+        new_cols = []
+        if keep_cols is not None:
+            for col in schema.cols:
+                if col.name not in keep_cols:
+                    continue
+                new_cols.append(copy.copy(col))
+        if new_name is None:
+            new_name = schema.name
+        if options is None:
+            options = {}
+        new_options = schema.options.copy()
+        new_options.update(options)
+        new_schema = cls(new_name, new_cols, new_options)
+
+        return new_schema
+
+    def filter_df(self, df):
+        """remove any columns not present in the schema."""
+        return df[self.col_names()]
+
     def copy(self):
         return copy.deepcopy(self)
 
@@ -150,7 +172,7 @@ class PartialSchema(Schema):
             missing = set(self.col_names()) - set(df.columns) 
             raise TypeError('some columns missing form partial schema: {}'.format(missing))
 
-        for col in self.cols:
+        for col in self._inferred_cols(df):
             if isinstance(col, Column):
                 col.conform(df, storage_target=storage_target)
 
@@ -167,15 +189,21 @@ class PartialSchema(Schema):
             self.add_prefix(df)
 
     @classmethod
-    def from_df(cls, df):
+    def _inferred_cols(cls, df):
         cols = []
         for column in df.columns:
-            if df[column].dtype in ('float64', 'int64'):
-                cols.append(num(column))
-            elif df[column].dtype == 'datetime64[ns]':
-                cols.append(dt(column))
+            for col_type in [num, dt, delta, cat]:
+                col = col_type(column)
+                if col.check(df[column]):
+                    cols.append(col)
+                    break
             else:
-                cols.append(obj(column))
+                cols.append(cat(column))
+        return cols
+
+    @classmethod
+    def from_df(cls, df):
+        cols = cls._inferred_cols(df)
         return cls(cols=cols)
 
     @classmethod
@@ -293,6 +321,10 @@ def _(col):
     
 @cat.register_transform('pandas')
 def _(col):
+    if col.dtype != 'object':
+        import pdb; pdb.set_trace()
+        col = col.map(str, na_action='ignore')
+
     return col.astype('category')
 
 ###############################################################################
@@ -308,7 +340,7 @@ def _(col):
 def _(col):
     try:
         return col.astype('int64')
-    except ValueError:
+    except (ValueError, TypeError):
         return col.astype('float64')
     
 ###############################################################################
@@ -358,7 +390,7 @@ class num(Column):
 
 @num.register_check('pandas')
 def _(col):
-    return col.dtype == 'float64'
+    return col.dtype == 'float64' or col.dtype == 'int64'
 
 @num.register_transform('pandas')
 def _(col):

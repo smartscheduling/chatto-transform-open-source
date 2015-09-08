@@ -4,7 +4,7 @@ from chatto_transform.schema.schema_base import *
 from chatto_transform.lib.mimic.session import load_table
 
 from chatto_transform.schema.mimic.mimic_schema import \
-    chartevents_schema, labevents_schema, ioevents_schema, icustay_detail_schema
+    chartevents_schema, labevents_schema, ioevents_schema, icustayevents_schema
 from chatto_transform.schema.mimic.patient_history_schema import \
     patient_history_schema, patient_history_relative_time_schema
 
@@ -143,8 +143,11 @@ class DemographicTransform(Transform):
         computed_df = pd.DataFrame(index=df.index)
         computed_df['AGE'] = df['icustay_admit_age'].round()
         computed_df['GENDER'] = df['gender'].cat.set_categories(['F', 'M']).cat.codes
-        computed_df['LOS'] = df['hospital_los'] / (60 * 24)
+        
+        computed_df['LOS'] = df['los'] / (60 * 24)
+
         computed_df['SURVIVAL'] = pd.to_timedelta(df['dod'] - df['icustay_intime']).dt.days
+        
         computed_df['WEIGHT'] = df['weight_first']
         computed_df['HEIGHT'] = df['height'].round(decimals=1)
         computed_df['SAPS'] = df['sapsi_first']

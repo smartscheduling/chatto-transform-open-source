@@ -28,7 +28,7 @@ NOTE: Use the link for Python 3.4, NOT 2.7.
 
 - Install the dependencies. `cd` into the top-level directory of the repo, and run:
 
-  `conda install chatto_transform_dependencies-0-np19_0.tar.bz2` and type 'y' when prompted.
+  `conda install chatto-transform-1.0-np19_0.tar.bz2` and type 'y' when prompted.
 
 - Add chatto-transform to your PYTHONPATH environment variable. Edit your .bashrc file or equivalent, and add the line:
 

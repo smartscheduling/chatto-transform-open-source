@@ -1,6 +1,7 @@
 import pandas
 from chatto_transform.schema.schema_base import *
 from chatto_transform.datastores.datastore_base import DataStore
+from chatto_transform.datastores.csv_datastore import CsvDataStore
 from chatto_transform.datastores.odo_datastore import OdoDataStore
 
 from functools import lru_cache, partial
@@ -134,9 +135,9 @@ def table_as_schema(table):
 def fast_sql_to_df(table, schema):
     engine = table.bind
 
-    if engine.dialect.name == 'mysql':
-        return fast_mysql_to_df(table, schema)
-    elif engine.dialect.name == 'postgresql':
+    # if engine.dialect.name == 'mysql':
+    #    return fast_mysql_to_df(table, schema)
+    if engine.dialect.name == 'postgresql':
         return fast_postgresql_to_df(table, schema)
 
     ods = OdoDataStore(schema, table)
@@ -150,12 +151,16 @@ def fast_mysql_to_df(table, schema):
     f = tempfile.NamedTemporaryFile('w', suffix='.csv', dir=config.data_dir+'tmp')
     try:
         f.close()
-        table_name = str(table)
         if not isinstance(table, Table):
-            table_name = '({})'.format(table_name)
+            compiled = table.compile()   
+            table_name = '({})'.format(str(compiled))
+            params = [compiled.params[k] for k in compiled.positiontup]
+        else:
+            table_name = str(table)
+            params = []
 
         # converting to csv
-        sql = """SELECT {cols} FROM {table} INTO OUTFILE '{filename}'
+        sql = """SELECT {cols} FROM {table} AS t INTO OUTFILE '{filename}'
         FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
         ESCAPED BY '\\\\'
         LINES TERMINATED BY '\n'""".format(
@@ -163,22 +168,24 @@ def fast_mysql_to_df(table, schema):
             filename=f.name,
             table=table_name)
 
-        table.bind.execute(sql)
+        table.bind.execute(sql, *params)
         
         # reading csv
-        df = pandas.read_csv(f.name, header=None, names=schema.col_names(), na_values=['\\N'])
+        csv_loader = CsvDataStore(schema, f.name, with_header=False, na_values=['\\N'])
+        df = csv_loader.load()
+        #df = pandas.read_csv(f.name, header=None, names=schema.col_names(), na_values=['\\N'])
     finally:
         os.remove(f.name)
 
-    for col in schema.cols:
-        if isinstance(col, dt):
-            # converting datetime column
-            df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
-        if isinstance(col, big_dt):
-            # converting big_dt column
-            strptime = datetime.datetime.strptime
-            parse_func = (lambda x: strptime(x, "%Y-%m-%d %H:%M:%S"))
-            df[col.name] = df[col.name].map(parse_func, na_action='ignore')
+    # for col in schema.cols:
+    #     if isinstance(col, dt):
+    #         # converting datetime column
+    #         df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
+    #     if isinstance(col, big_dt):
+    #         # converting big_dt column
+    #         strptime = datetime.datetime.strptime
+    #         parse_func = (lambda x: strptime(x, "%Y-%m-%d %H:%M:%S"))
+    #         df[col.name] = df[col.name].map(parse_func, na_action='ignore')
     return df
 
 def fast_postgresql_to_df(table, schema):
@@ -362,34 +369,27 @@ class SAJoinDataStore(DataStore):
             for col in b_table.c:
                 select_clause.append(col.label("{}.{}".format(col_prefix, col.name)))
 
-        temp_schema = Schema.rename(self.schema, 'temp_'+self.schema.name)
-        temp_table = schema_as_table(temp_schema, self.engine)        
-        try:
-            temp_table.create(self.engine)
+        #temp_schema = Schema.rename(self.schema, 'temp_'+self.schema.name)
+        #temp_table = schema_as_table(temp_schema, self.engine)        
+        #try:
+        #    temp_table.create(self.engine)
 
-            query = select(select_clause).select_from(join_clause)
-            if self.where_clauses is not None:
-                query = query.where(and_(*self.where_clauses))
+        query = select(select_clause).select_from(join_clause)
+        if self.where_clauses is not None:
+            query = query.where(and_(*self.where_clauses))
 
-            insert = temp_table.insert().from_select(temp_schema.col_names(), query)
+        #    insert = temp_table.insert().from_select(temp_schema.col_names(), query)
 
-            start = time.time()
-            
-            print('executing join into temp table')
-            self.engine.execute(insert)
-            joined = time.time()
-
-            print('loading rows from temp table')
-            df = fast_sql_to_df(temp_table, temp_schema)
-            loaded = time.time()
-        finally:
-            temp_table.drop(self.engine)
-
+        start = time.time()
+        
+        print('loading rows from join')
+        df = fast_sql_to_df(query, self.schema)
+        loaded = time.time()
+        #finally:
+        #    temp_table.drop(self.engine)
+        
+        print('took', loaded - start, 'seconds to perform the join and load the results')
         print('type checking and sorting')
-        
-        print('took', joined - start, 'seconds to perform the join')
-        print('took', loaded - joined, 'seconds to load the results')
-        
         return df
 
 class SAQueryDataStore(DataStore):

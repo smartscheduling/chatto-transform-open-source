@@ -24,7 +24,7 @@ if __name__ == '__main__':
 		table_names = args.table_names
 
 	with open(config.data_dir+args.filename, 'w') as f:
-		for table_name in table_names:
+		for table_name in sorted(table_names):
 			print('getting reflected table for', table_name)
 			table = metadata.tables[table_name]
 			s = table_as_schema(table)

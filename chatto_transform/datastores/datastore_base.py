@@ -18,6 +18,7 @@ class DataStore:
         for chunk in self._load_chunks():
             self.schema.conform_df(chunk)
             yield chunk
+            del chunk
 
     def store(self, df):
         df = df.copy()

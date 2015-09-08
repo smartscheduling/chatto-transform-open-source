@@ -26,21 +26,57 @@ def _(col):
     col = col.astype('float64')
     return col
 
+
+@cat.register_metadata('csv_dtype')
+def _(self):
+    return (self.name, 'object')
+
+@id_.register_metadata('csv_dtype')
+def _(self):
+    return (self.name, 'float64')
+
+@dt.register_metadata('csv_dtype')
+@delta.register_metadata('csv')
+def _(self):
+    return (self.name, 'object')
+
+@num.register_metadata('csv_dtype')
+def _(self):
+    return (self.name, 'float64')
+
+@bool_.register_metadata('csv_dtype')
+def _(self):
+    return (self.name, 'float64')
+
+
 class CsvDataStore(DataStore):
-    def __init__(self, schema, file, compress=False):
+    def __init__(self, schema, file, compress=False, with_header=True, na_values=None):
         self.file = file
         self.compress = compress
+        self.with_header = with_header
+        self.na_values = na_values
         super().__init__(schema)
 
     def storage_target(self):
         return 'csv'
 
     def _load(self):
+        print ('loading csv')
         if self.compress:
             compression = 'gzip'
         else:
             compression = None
-        df = pandas.read_csv(self.file, compression=compression)
+
+        dtype_dict = dict(col.metadata('csv_dtype') for col in self.schema.cols)
+
+        kwargs = {}
+        if not self.with_header:
+            kwargs['header'] = None
+            kwargs['names'] = self.schema.col_names()
+        if self.na_values is not None:
+            kwargs['na_values'] = self.na_values
+
+        df = pandas.read_csv(self.file, compression=compression, dtype=dtype_dict, **kwargs)
         for col in self.schema.cols:
             if isinstance(col, dt):
                 print('converting datetime column', col.name)

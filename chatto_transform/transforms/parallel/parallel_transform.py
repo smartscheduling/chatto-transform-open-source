@@ -1,54 +1,37 @@
-from itertools import zip_longest, islice
-from tempfile import mkstemp
+from itertools import chain
 import os
-from contextlib import contextmanager, suppress
 import time
-import random
-import string
+from multiprocessing import cpu_count
+import sys
+import resource
+import gc
 
 import pandas
-from sklearn.externals import joblib
+import numpy as np
+import joblib
 
-from chatto_transform.config import config
-from chatto_transform.schema.schema_base import Schema
 from chatto_transform.transforms.transform_base import Transform
+from chatto_transform.lib.chunks import from_chunks, to_chunks, to_group_chunks, CHUNK_SIZE
+from chatto_transform.lib import temp_file
+from chatto_transform.datastores.hdf_datastore import HdfDataStore
 
 """Library for executing transforms in parallel.
 
-Uses a MapReduce-like approach to parallelizing a transform, splitting the data
-repeatedly and then transforming the atomic chunks.
+Splits data into as many groups as there are cpus, and runs a transform on all groups simultaneously.
 
 HDFStore is used as an intermediate storage target, to pass data between jobs."""
 
 
-class PrepareJobResult:
-    def __init__(self, job_type, jobs):
-        self.job_type = job_type
-        self.jobs = jobs
-
-def grouper(iterable, n, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
-    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
-    args = [iter(iterable)] * n
-    return zip_longest(*args, fillvalue=fillvalue)
-
-def expanding_groups(iterable, min_size=1):
-    values = list(iterable)
-    if min_size > len(values):
-        min_size = len(values)
-    for l in range(min_size, len(values) + 1):
-        yield values[:l]
-
 class ParallelTransform(Transform):
-    def __init__(self, transform, group_index, split_bins=4, min_rows_split=1024, group_rows_hint=None, n_jobs=-1):
+    def __init__(self, transform, group_index=None, chunksize=None, n_jobs=-1):
         self.transform_obj = transform
         self.group_index = group_index
-        self.split_bins = split_bins
-        self.min_rows_split = min_rows_split
+        if n_jobs == -1:
+            n_jobs = cpu_count()
         self.n_jobs = n_jobs
-        if group_rows_hint is None:
-            group_rows_hint = min_rows_split
-        self.group_rows_hint = group_rows_hint
+        if chunksize is None:
+            chunksize = CHUNK_SIZE
+        self.chunksize = chunksize
 
     def output_schema(self):
         return self.transform_obj.output_schema()
@@ -57,118 +40,120 @@ class ParallelTransform(Transform):
         return self.transform_obj.input_schema()
 
     def _transform(self, data):
-        print('splitting data into groups')
-        transform_jobs_result = self.split_and_prepare_transform_jobs(data)
-        print('transforming data in', len(transform_jobs_result.jobs), 'groups')
-        results = joblib.Parallel(n_jobs=self.n_jobs)(transform_jobs_result.jobs)
-
-        transformed = self.merge_results(results)
-        return transformed
-
-    def load_and_merge_results_job(self, results):
-        transformed = self.load_and_merge_results(results)
-        return transformed
-
-    def _update_split_transform_lists(self, pjr, split_jobs, transform_jobs):
-        if pjr.job_type == 'split':
-            split_jobs.extend(pjr.jobs)
-        elif pjr.job_type == 'transform':
-            transform_jobs.extend(pjr.jobs)
-
-    def split_and_prepare_transform_jobs(self, data):
-        pjr = self.prepare_jobs(data)
-
-        split_jobs = []
-        transform_jobs = []
-        self._update_split_transform_lists(pjr, split_jobs, transform_jobs)
-
-        while split_jobs:
-            pjrs = joblib.Parallel(n_jobs=self.n_jobs)(split_jobs)
-            split_jobs = []
-            for pjr in pjrs:
-                self._update_split_transform_lists(pjr, split_jobs, transform_jobs)
-        return PrepareJobResult('transform', transform_jobs)
-
-    def prepare_jobs(self, data, disable_splits=False):
-        ids = list(data[self.group_index].unique())
-
-        if len(data) < self.min_rows_split or len(ids) < self.split_bins:
-            return self.prepare_transform_jobs(data, ids)
-        else:
-            return self.prepare_split_jobs(data, ids)
-        
-    def prepare_split_jobs(self, data, ids):
-        ids = set(ids)
-        id_groups = list(map(list, grouper(ids, (len(ids) // self.split_bins) + 1)))
-
-        print('splitting', len(ids), 'atoms into', len(id_groups), 'groups')
-            
-        split_jobs = []
-        for id_group in id_groups:
-            group_data = data[data[self.group_index].isin(id_group)]
-            split_jobs.append(joblib.delayed(self.prepare_jobs)(group_data))
-        return PrepareJobResult('split', split_jobs)
-
-    def prepare_transform_jobs(self, data, ids):
-        id_groups = []
-        ids = set(ids)
-        total_ids = len(ids)
-        while ids:
-            all_data = data[data[self.group_index].isin(ids)]
-            if len(all_data) < self.min_rows_split or len(ids) == 1:
-                id_groups.append(list(ids))
-                break
-            for id_group in expanding_groups(ids, self.min_rows_split // self.group_rows_hint):
-                group_data = data[data[self.group_index].isin(id_group)]
-                if len(group_data) >= self.min_rows_split:
-                    id_groups.append(id_group)
-                    ids = ids - set(id_group)
-                    break
-        
-        print('preparing transfornms for', total_ids, 'atoms in', len(id_groups), 'groups')
-        transform_jobs = []
-        for id_group in id_groups:
-            group_data = data[data[self.group_index].isin(id_group)]
-            transform_jobs.append(joblib.delayed(self.transform_job)(group_data))
-
-        return PrepareJobResult('transform', transform_jobs)
-
-    def transform_job(self, data):
         start = time.time()
+        print('transforming data of size', data.memory_usage(index=True).sum(), 'bytes')
+        
+        store_chunks_jobs = []
+        transform_jobs = []
+        hdf_stores = []
+        try:
+            print('splitting data into large groups')
+            group_iter = self._group_iter(data, len(data) // self.n_jobs or self.chunksize)
+
+            for group_data in group_iter:
+                if group_data.empty:
+                    continue
+                f = temp_file.make_temporary_file()
+                hdf_store = HdfDataStore(self.input_schema(), f)
+                hdf_stores.append(hdf_store)
+                hdf_store.store(group_data)
+
+                store_chunks_jobs.append(joblib.delayed(self.store_chunks_job)(hdf_store))
+                #transform_jobs.append(joblib.delayed(self.transform_job)(hdf_store))
+            print('breaking data into chunks in parallel')
+            joblib.Parallel(n_jobs=self.n_jobs)(store_chunks_jobs)
+
+            chunk_stores = chain.from_iterable(store.chunk_stores() for store in hdf_stores)
+
+            transform_jobs = [joblib.delayed(self.transform_job)(chunk_store) for chunk_store in chunk_stores]
+
+            print('running transforms in', len(transform_jobs), 'parallel jobs')
+            result_hdf_stores = joblib.Parallel(n_jobs=self.n_jobs)(transform_jobs)
+
+            print('loading and merging the results')
+            results = from_chunks(r_hdf_store.load() for r_hdf_store in result_hdf_stores)
+            print('finished merge')
+        finally:
+            for hdf_store in hdf_stores:
+                hdf_store.delete_chunks()
+                hdf_store.delete()
+
+        end = time.time()
+        print('took', end - start, 'seconds to transform all data in parallel')
+        return results
+
+    def _group_iter(self, data, chunksize):
+        if self.group_index is not None:
+            group_iter = to_group_chunks(data, self.group_index, chunksize)
+        else:
+            group_iter = to_chunks(data, chunksize)
+        return group_iter
+
+
+    def store_chunks_job(self, hdf_store):
+        data = hdf_store.load()
+        chunks = self._group_iter(data, self.chunksize)
+        def gc_chunks():
+            for chunk in chunks:
+                yield chunk
+                del chunk
+                gc.collect()
+        hdf_store.store_chunks(gc_chunks())
+        
+    # def transform_job(self, hdf_store):
+        
+
+
+    #     chunks = hdf_store.load_chunks()
+    #     transformed_chunks = self.transform_chunks(chunks)
+    #     t_hdf_store = HdfDataStore(self.output_schema(), hdf_store.hdf_file)
+    #     t_hdf_store.store_chunks(transformed_chunks)
+        
+    #     return t_hdf_store
+
+    # def transform_chunks(self, chunks):
+    #     for chunk in chunks:
+    #         yield self.transform_chunk(chunk)
+    #         del chunk
+    #         gc.collect()
+
+    def transform_job(self, chunk_store):
+        gc.collect()
+        start = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 10**6 #sys.getallocatedblocks()
+
+        data = chunk_store.load()
+        gc.collect()
+
+        finished_load = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 10**6 #sys.getallocatedblocks()
+
+        result = self.transform_chunk(data)
+        gc.collect()
+
+        finished_transform = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 10**6 #sys.getallocatedblocks()
+
+        t_hdf_store = HdfDataStore(self.output_schema(), chunk_store.hdf_file)
+        t_hdf_store.store(result)
+        gc.collect()
+
+        finished_store = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 10**6 #sys.getallocatedblocks()
+        print('started with', start, 'mb, ended with', finished_store, 'difference =', finished_store - start)
+        print('loading used', finished_load - start, 'mb')
+        print('transforming used', finished_transform - finished_load, 'mb')
+        print('storing used', finished_store - finished_transform, 'mb')
+        return t_hdf_store
+            
+    def transform_chunk(self, data):
+        print('transforming chunk of length', len(data), 'mem usage', data.memory_usage(index=True).sum() / 10**6, 'mb')
         transformed_groups = []
-        for group_id, group_data in data.groupby(self.group_index, as_index=False):
+        if self.group_index is None:
+            return self.transform_obj.transform(data)
+        
+        for group_id, group_data in data.groupby(self.group_index, as_index=False, sort=False):
             if group_data.empty: #pandas bug where empty groups are returned when grouped by a category
                 continue
             transformed_group = self.transform_obj.transform(group_data)
             transformed_groups.append(transformed_group)
 
         transformed_data = pandas.concat(transformed_groups)
-
-        end = time.time()
-        print('finished transform job in', end - start, 'seconds')
         return transformed_data
 
-    def merge_results(self, results):
-        while len(results) > self.split_bins:
-            print('merging', len(results), 'pieces')
-            merge_jobs = self.prepare_merge_jobs(results)
-            results = joblib.Parallel(n_jobs=self.n_jobs)(merge_jobs)
-        return self.load_and_merge_results(results)
-
-    def prepare_merge_jobs(self, results):
-        result_groups = grouper(results, self.split_bins)
-        merge_jobs = []
-        for result_group in result_groups:
-            result_group = list(result_group)
-            merge_jobs.append(joblib.delayed(self.load_and_merge_results_job)(result_group))
-        return merge_jobs
-
-    def load_and_merge_results(self, results):
-        transformed_list = []
-        for transformed_data in results:
-            if transformed_data is not None: #grouper() will pad groups with None if not enough
-                transformed_list.append(transformed_data)
-
-        transformed = pandas.concat(transformed_list)
-
-        return transformed

@@ -18,3 +18,13 @@ class CachingDataStore(DataStore):
             return df
 
         return df
+
+    def update_cache(self):
+        df = self.load_ds.load()
+
+        try:
+            self.cache_ds.store(df)
+        except ValueError:
+            return df
+
+        return df
