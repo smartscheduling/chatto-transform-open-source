@@ -196,7 +196,7 @@ def fast_postgresql_to_df(table, schema):
             table_name = str(table)
             if not isinstance(table, Table):
                 table_name = '({})'.format(table_name)
-            sql = "COPY {table_name} TO STDOUT WITH (FORMAT CSV, HEADER TRUE, ENCODING UTF8)".format(
+            sql = "COPY {table_name} TO STDOUT WITH (FORMAT CSV, HEADER TRUE)".format(
                 table_name=table_name)
             cur.copy_expert(sql, f)
 
@@ -221,7 +221,7 @@ def fast_postgresql_to_csv(table, file_path):
             table_name = str(table)
             if not isinstance(table, Table):
                 table_name = '({})'.format(table_name)
-            sql = "COPY {table_name} TO STDOUT WITH (FORMAT CSV, HEADER TRUE, ENCODING UTF8)".format(
+            sql = "COPY {table_name} TO STDOUT WITH (FORMAT CSV, HEADER TRUE)".format(
                 table_name=table_name)
             cur.copy_expert(sql, f)
 
