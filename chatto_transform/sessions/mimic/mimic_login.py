@@ -16,7 +16,7 @@ def get_config():
     
 def get_engine():
     mimic_config = get_config()
-    return create_engine(mimic_config.mimic_psql_config)
+    return create_engine(mimic_config.mimic_psql_config, encoding='utf8')
 
 def get_local_storage_dir():
     mimic_config = get_config()
