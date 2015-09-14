@@ -114,5 +114,5 @@ def query():
     def on_button_clicked(b):
         result = load_table(ss.value, c.value or None)
         loaded_tables[ss.value.name] = result
-        print('Loaded', ss.value.name, 'and stored in loaded_tables["{}"]'.format(ss.value_name))
+        print('Loaded', ss.value.name, 'and stored in loaded_tables["{}"]'.format(ss.value.name))
 
