@@ -63,7 +63,7 @@ def store_csv(schema, condition=None):
     
     loader = _get_table_loader(schema, condition)
     loader.to_csv(file_path)
-    return FileLink(os.relpath(file_path), result_html_prefix='Right-click and save: ')
+    return FileLink(os.path.relpath(file_path), result_html_prefix='Right-click and save: ')
 
 def df_to_csv(file_name, df):
     if not os.path.splitext(file_name)[1] == '.csv':
@@ -74,7 +74,7 @@ def df_to_csv(file_name, df):
     
     store = CsvDataStore(PartialSchema(sp), file_path)
     store.store(df)
-    return FileLink(os.relpath(file_path), result_html_prefix='Right-click and save: ')
+    return FileLink(os.path.relpath(file_path), result_html_prefix='Right-click and save: ')
 
 def df_to_hdf5(file_name, df):
     if not os.path.splitext(file_name)[1] == '.hdf':
@@ -85,7 +85,7 @@ def df_to_hdf5(file_name, df):
 
     store = HdfDataStore(PartialSchema(sp), file_path)
     store.store(df)
-    return FileLink(os.relpath(file_path), result_html_prefix='Right-click and save: ')
+    return FileLink(os.path.relpath(file_path), result_html_prefix='Right-click and save: ')
 
 
 ### Widget common usage
