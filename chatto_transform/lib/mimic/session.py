@@ -1,5 +1,3 @@
-import chatto_transform.config
-
 try:
     from chatto_transform.config import mimic_config, config
 except ImportError:

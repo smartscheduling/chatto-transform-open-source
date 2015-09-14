@@ -1,8 +1,8 @@
 from chatto_transform.schema.schema_base import *
 
 admissions_schema = Schema("admissions", [
-    num("row_id"),
-    num("subject_id"),
+    id_("row_id"),
+    id_("subject_id"),
     num("hadm_id"),
     dt("admittime"),
     dt("dischtime"),
@@ -22,9 +22,9 @@ options={
 })
 
 callout_schema = Schema("callout", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     num("submit_wardid"),
     cat("submit_careunit"),
     num("curr_wardid"),
@@ -52,7 +52,7 @@ options={
 })
 
 caregivers_schema = Schema("caregivers", [
-    num("row_id"),
+    id_("row_id"),
     num("cgid"),
     cat("label"),
     cat("description")
@@ -62,11 +62,11 @@ options={
 })
 
 chartevents_schema = Schema("chartevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("icustay_id"),
-    num("itemid"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("icustay_id"),
+    id_("itemid"),
     dt("charttime"),
     dt("storetime"),
     num("cgid"),
@@ -83,9 +83,9 @@ options={
 })
 
 cptevents_schema = Schema("cptevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     cat("costcenter"),
     dt("chartdate"),
     cat("cpt_cd"),
@@ -101,7 +101,7 @@ options={
 })
 
 d_cpt_schema = Schema("d_cpt", [
-    num("row_id"),
+    id_("row_id"),
     num("category"),
     cat("sectionrange"),
     cat("sectionheader"),
@@ -116,8 +116,8 @@ options={
 })
 
 d_icd_diagnoses_schema = Schema("d_icd_diagnoses", [
-    num("row_id"),
-    cat("code_icd9"),
+    id_("row_id"),
+    cat("icd9_code"),
     cat("short_title"),
     cat("long_title")
 ],
@@ -126,8 +126,8 @@ options={
 })
 
 d_icd_procedures_schema = Schema("d_icd_procedures", [
-    num("row_id"),
-    cat("code_icd9"),
+    id_("row_id"),
+    cat("icd9_code"),
     cat("short_title"),
     cat("long_title")
 ],
@@ -136,7 +136,7 @@ options={
 })
 
 d_items_schema = Schema("d_items", [
-    num("row_id"),
+    id_("row_id"),
     num("itemid"),
     cat("label"),
     cat("abbreviation"),
@@ -154,7 +154,7 @@ options={
 })
 
 d_labitems_schema = Schema("d_labitems", [
-    num("row_id"),
+    id_("row_id"),
     num("itemid"),
     cat("label"),
     cat("fluid"),
@@ -166,11 +166,11 @@ options={
 })
 
 datetimeevents_schema = Schema("datetimeevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("icustay_id"),
-    num("itemid"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("icustay_id"),
+    id_("itemid"),
     dt("charttime"),
     dt("storetime"),
     num("cgid"),
@@ -186,11 +186,11 @@ options={
 })
 
 diagnoses_icd_schema = Schema("diagnoses_icd", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     num("sequence"),
-    cat("code"),
+    cat("icd9_code"),
     cat("description")
 ],
 options={
@@ -198,9 +198,9 @@ options={
 })
 
 drgcodes_schema = Schema("drgcodes", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     cat("drg_type"),
     cat("drg_code"),
     cat("description"),
@@ -212,9 +212,9 @@ options={
 })
 
 icustayevents_schema = Schema("icustayevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     num("icustay_id"),
     cat("dbsource"),
     cat("first_careunit"),
@@ -230,10 +230,10 @@ options={
 })
 
 ioevents_schema = Schema("ioevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("icustay_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("icustay_id"),
     dt("starttime"),
     dt("endtime"),
     num("itemid"),
@@ -274,10 +274,10 @@ options={
 })
 
 labevents_schema = Schema("labevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("itemid"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("itemid"),
     dt("charttime"),
     cat("value"),
     num("valuenum"),
@@ -289,9 +289,9 @@ options={
 })
 
 microbiologyevents_schema = Schema("microbiologyevents", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     dt("chartdate"),
     dt("charttime"),
     num("spec_itemid"),
@@ -314,14 +314,14 @@ options={
 })
 
 noteevents_schema = Schema("noteevents", [
-    num("row_id"),
+    id_("row_id"),
     num("record_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     dt("chartdate"),
     cat("category"),
     cat("description"),
-    num("cgid"),
+    id_("cgid"),
     cat("iserror"),
     cat("text")
 ],
@@ -330,7 +330,7 @@ options={
 })
 
 patients_schema = Schema("patients", [
-    num("row_id"),
+    id_("row_id"),
     num("subject_id"),
     cat("gender"),
     dt("dob"),
@@ -344,10 +344,10 @@ options={
 })
 
 prescriptions_schema = Schema("prescriptions", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("icustay_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("icustay_id"),
     dt("starttime"),
     dt("endtime"),
     cat("drug_type"),
@@ -369,9 +369,9 @@ options={
 })
 
 procedures_icd_schema = Schema("procedures_icd", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     num("proc_seq_num"),
     cat("icd9_code")
 ],
@@ -380,9 +380,9 @@ options={
 })
 
 services_schema = Schema("services", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
     dt("transfertime"),
     cat("prev_service"),
     cat("curr_service")
@@ -392,10 +392,10 @@ options={
 })
 
 transfers_schema = Schema("transfers", [
-    num("row_id"),
-    num("subject_id"),
-    num("hadm_id"),
-    num("icustay_id"),
+    id_("row_id"),
+    id_("subject_id"),
+    id_("hadm_id"),
+    id_("icustay_id"),
     cat("dbsource"),
     cat("eventtype"),
     cat("prev_careunit"),
