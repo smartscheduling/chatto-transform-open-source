@@ -95,7 +95,9 @@ def download_table():
     c = mimic_widgets.where_clause_text()
     b = widgets.Button(description='Execute')
 
-    display(ss, c, b)
+    display(ss)
+    display(c)
+    display(b)
 
     @b.on_click
     def on_button_clicked(b):
@@ -108,7 +110,9 @@ def query():
     c = mimic_widgets.where_clause_text()
     b = widgets.Button(description='Execute')
 
-    display(ss, c, b)
+    display(ss)
+    display(c)
+    display(b)    
 
     @b.on_click
     def on_button_clicked(b):
