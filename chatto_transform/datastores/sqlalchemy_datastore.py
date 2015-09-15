@@ -217,7 +217,7 @@ def fast_postgresql_to_csv(table, file_path):
     engine = table.bind
     conn = engine.raw_connection()
     with conn.cursor() as cur:
-        with open(file_path, 'w') as f:
+        with open(file_path, 'w', encoding='utf-8') as f:
             table_name = str(table)
             if not isinstance(table, Table):
                 table_name = '({})'.format(table_name)
