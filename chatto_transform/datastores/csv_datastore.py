@@ -61,7 +61,6 @@ class CsvDataStore(DataStore):
         return 'csv'
 
     def _load(self):
-        print ('loading csv')
         if self.compress:
             compression = 'gzip'
         else:
@@ -79,7 +78,6 @@ class CsvDataStore(DataStore):
         df = pandas.read_csv(self.file, compression=compression, dtype=dtype_dict, **kwargs)
         for col in self.schema.cols:
             if isinstance(col, dt):
-                print('converting datetime column', col.name)
                 df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
         return df
 

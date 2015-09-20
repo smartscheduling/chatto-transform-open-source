@@ -68,9 +68,16 @@ def left_join(left_df, right_df, on=None, left_on=None, right_on=None):
     if on is not None:
         if left_on is not None or right_on is not None:
             raise TypeError('must specify either on or both left_on and right_on')
+        left_on = right_on = on
     elif left_on is None or right_on is None:
         raise TypeError('must specify either on or both left_on and right_on')
-
+    
+    if hasattr(left_df[left_on], 'cat') and hasattr(right_df[right_on], 'cat'):
+        l_cat = left_df[left_on].cat.categories
+        r_cat = right_df[right_on].cat.categories
+        merged_cat = l_cat.union(r_cat)
+        left_df[left_on] = left_df[left_on].cat.set_categories(merged_cat)
+        right_df[right_on] = right_df[right_on].cat.set_categories(merged_cat)
 
     cat_categories = {}
     for chunk in [left_df,  right_df]:
@@ -79,11 +86,8 @@ def left_join(left_df, right_df, on=None, left_on=None, right_on=None):
             cat_categories[col] = chunk[col].cat.categories
             chunk[col] = chunk[col].cat.codes
     
-    if on is not None:
-        df = pd.merge(left_df, right_df, how='left', on=on, sort=False, copy=False)
-    else:
-        df = pd.merge(left_df, right_df, how='left',
-            left_on=left_on, right_on=right_on, sort=False, copy=False)
+    df = pd.merge(left_df, right_df, how='left',
+        left_on=left_on, right_on=right_on, sort=False, copy=False)
 
     for column, categories in cat_categories.items():
         df[column] = pd.Categorical.from_codes(df[column].fillna(-1), categories, name=column)
@@ -111,6 +115,9 @@ def horizontal_merge(chunks):
     return df
 
 
+def unstack(df):
+    "unstack efficiently with categoricals"
+    pass
 
 
 

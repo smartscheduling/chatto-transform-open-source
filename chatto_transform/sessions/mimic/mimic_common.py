@@ -1,6 +1,7 @@
 from chatto_transform.sessions.mimic import mimic_login, mimic_widgets
 
 from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
+from chatto_transform.datastores.appendable_datastore import AppendableHdfDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
 from chatto_transform.datastores.csv_datastore import CsvDataStore
 from chatto_transform.datastores.caching_datastore import CachingDataStore
@@ -19,6 +20,7 @@ import ipywidgets as widgets
 import unicodedata
 import re
 import os.path
+import shelve
 
 
 def slugify(value):
@@ -27,8 +29,8 @@ def slugify(value):
     and converts spaces to hyphens.
     """
     value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
-    value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
-    return re.sub('[-\s]+', '-', value)
+    value = re.sub(b'[^\w\s-]', b'', value).strip().lower()
+    return re.sub(b'[-\s]+', b'-', value).decode(encoding='UTF-8')
 
 def _get_table_loader(schema, condition=None):
     if condition is not None:
@@ -46,10 +48,19 @@ def load_table(schema, condition=None):
     if local_storage_dir:
         query_f_name = schema.name
         if condition is not None:
-            query_f_name += '_' + condition
+            db_file = mimic_login.get_db_file()
+            with shelve.open(db_file) as db:
+                qs_k = 'queries_'+schema.name
+                if qs_k not in db:
+                    db[qs_k] = ()
+                condition = slugify(condition)
+                if condition not in db[qs_k]:
+                    db[qs_k] += (condition,)
+                q_idx = db[qs_k].index(condition)
+                query_f_name += '_query_' + str(q_idx)
         query_f_name +='.hdf'
         query_f_name = os.path.join(local_storage_dir, query_f_name)
-        cache = HdfDataStore(schema, query_f_name, fixed=True)
+        cache = AppendableHdfDataStore(schema, query_f_name)
         loader = CachingDataStore(schema, loader, cache)
         
     return loader.load()

@@ -5,6 +5,7 @@ import datetime
 from contextlib import suppress
 from itertools import count
 import pandas
+import numpy as np
 import os
 import os.path
 
@@ -41,13 +42,13 @@ def _(col):
 
 
 for col_type in [id_, dt, delta, big_dt, num, bool_]:
-    col_type._storage_target_registry['hdf_table'] = col_type._storage_target_registry['hdf'].copy()
+    col_type._storage_target_registry['hdf_enc'] = col_type._storage_target_registry['hdf'].copy()
 
-@cat.register_check('hdf_table')
+@cat.register_check('hdf_enc')
 def _(col):
     return col.dtype == 'category'
 
-@cat.register_transform('hdf_table')
+@cat.register_transform('hdf_enc')
 def _(col):
     return col.astype('category')
 
@@ -59,7 +60,7 @@ class HdfDataStore(DataStore):
         super().__init__(schema)
 
     def storage_target(self):
-        return 'hdf' if self.fixed else 'hdf_table'
+        return 'hdf' if not self.encode_categoricals else 'hdf_enc'
 
     def _chunk_filename(self, i):
         return self.hdf_file+'_chunk_' + str(i)
@@ -72,6 +73,10 @@ class HdfDataStore(DataStore):
             col_categories = store.get_storer(self.schema.name).attrs.metadata['column_categories']
             for col, categories in col_categories.items():
                 df[col] = pandas.Categorical.from_codes(df[col], categories, name=col)
+        else:
+            for col in self.schema.cols:
+                if isinstance(col, cat):
+                    df[col.name].replace('nan', np.nan)
         store.close()
         return df
 

@@ -21,3 +21,9 @@ def get_engine():
 def get_local_storage_dir():
     mimic_config = get_config()
     return getattr(mimic_config, 'local_storage_dir', None)
+
+def get_db_file():
+    local_storage_dir = get_local_storage_dir()
+    if local_storage_dir is not None:
+        return os.path.join(local_storage_dir, '_session')
+

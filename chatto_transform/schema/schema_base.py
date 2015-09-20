@@ -137,7 +137,7 @@ class Schema:
             self.add_prefix(df)
 
     def add_prefix(self, df):
-        df.columns = [self.name+'.'+col for col in df.columns]
+        df.columns = [self.name+'.'+col if col in self.col_names() else col for col in df.columns]
 
     def __eq__(self, other_schema):
         return type(self) == type(other_schema) and self.cols == other_schema.cols and self.name == other_schema.name
@@ -188,10 +188,14 @@ class PartialSchema(Schema):
         if add_prefix:
             self.add_prefix(df)
 
-    @classmethod
-    def _inferred_cols(cls, df):
+    def _inferred_cols(self, df):
         cols = []
+        col_names = self.col_names()
         for column in df.columns:
+            if column in col_names:
+                ind = col_names.index(column)
+                cols.append(self.cols[ind])
+                continue
             for col_type in [num, dt, delta, cat]:
                 col = col_type(column)
                 if col.check(df[column]):
@@ -321,11 +325,12 @@ def _(col):
     
 @cat.register_transform('pandas')
 def _(col):
-    if col.dtype != 'object':
-        import pdb; pdb.set_trace()
-        col = col.map(str, na_action='ignore')
+    col = col.astype('category')
 
-    return col.astype('category')
+    cats = col.cat.categories
+    if cats.dtype != 'object':
+        col = col.cat.categories = cats.astype(str)
+    return col
 
 ###############################################################################
 

@@ -19,7 +19,7 @@ class AppendableHdfDataStore(DataStore):
         self.expected_rows = expected_rows
 
     def storage_target(self):
-        return 'hdf_table'
+        return 'hdf_enc'
 
     def exists(self):
         return os.path.isfile(self.hdf_file)
@@ -33,7 +33,7 @@ class AppendableHdfDataStore(DataStore):
                 os.remove(self._get_category_file(col))
 
     def _get_category_file(self, col):
-        return self.hdf_file + '_' + col +'_categories.msg'
+        return self.hdf_file + '_' + col +'_categories.csv'
 
     def _any_categories(self, col):
         cat_file = self._get_category_file(col)
@@ -41,11 +41,15 @@ class AppendableHdfDataStore(DataStore):
 
     def _load_categories(self, col):
         cat_file = self._get_category_file(col)
-        return pd.concat(pd.read_msgpack(cat_file, iterator=True), ignore_index=True, copy=False)
+        cat_df = pd.read_csv(cat_file, header=None, names=['categories'])
+        return cat_df['categories']
 
-    def _append_categories(self, col, categories):
+    def _add_categories(self, col, categories, append=True):
         cat_file = self._get_category_file(col)
-        categories.to_msgpack(cat_file, append=True)
+        cat_df = pd.DataFrame()
+        cat_df['categories'] = categories
+        with open(cat_file, 'a') as f:
+            cat_df.to_csv(f, index=False, header=False)
 
     def _get_store(self):
         return pd.HDFStore(self.hdf_file, complevel=9, complib='blosc')
@@ -80,8 +84,8 @@ class AppendableHdfDataStore(DataStore):
         for col_name, categories in col_categories.items():
             if len(categories) > 0:
                 categories = self._category_index_to_series(categories)
-                self._append_categories(col_name, categories)
-                
+                self._add_categories(col_name, categories, append=False)
+    
     def append(self, inc_df):
         inc_df = inc_df.copy()
         self.schema.conform_df(inc_df)
@@ -95,9 +99,8 @@ class AppendableHdfDataStore(DataStore):
         for col in self._categorical_cols():
             if not self._any_categories(col):
                 if len(inc_df[col].cat.categories) > 0:
-                    print('storing categories for', col)
                     categories = self._category_index_to_series(inc_df[col].cat.categories)
-                    categories.to_msgpack(cat_file, append=True)
+                    self._add_categories(col, categories, append=False)
                 inc_df[col] = inc_df[col].cat.codes.astype('int64')    
 
             else:
@@ -111,7 +114,7 @@ class AppendableHdfDataStore(DataStore):
                 if len(diff) > 0:
                     print('updating categories for', col)
                     categories = self._category_index_to_series(diff)
-                    self._append_categories(col, categories)
+                    self._add_categories(col, categories)
 
         print('storing numeric data')
         store = self._get_store()

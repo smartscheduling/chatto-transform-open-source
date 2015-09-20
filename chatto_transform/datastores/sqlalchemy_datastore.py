@@ -201,7 +201,10 @@ def fast_postgresql_to_df(table, schema):
             cur.copy_expert(sql, f)
 
             f.seek(0)
-            df = pandas.read_csv(f)
+             # reading csv
+            csv_loader = CsvDataStore(schema, f, with_header=True)
+            df = csv_loader.load()
+            #df = pandas.read_csv(f)
             for col in schema.cols:
                 if isinstance(col, dt):
                     # converting datetime column
