@@ -8,6 +8,7 @@ from chatto_transform.sessions.mimic import mimic_common
 
 import itertools
 import pandas as pd
+import numpy as np
 from math import ceil
 
 class VasopressorDays(Transform):
@@ -22,10 +23,7 @@ class VasopressorDays(Transform):
         self.metavision = not carevue_only
 
     def input_schema(self):
-        return MultiSchema({
-            'ioevents': PartialSchema.from_schema(ioevents_schema),
-            'icustayevents': PartialSchema.from_schema(icustayevents_schema)
-        })
+            return PartialSchema.from_schema(ioevents_schema)
 
     def _load(self):
         valid_vaso_ids = []
@@ -36,8 +34,7 @@ class VasopressorDays(Transform):
         ioevents_cond = "itemid in ( {} )".format(', '.join(map(str, sorted(valid_vaso_ids))))
         ioevents_cond += " and ((rate is not null and rate != 0) or (volume is not null and volume != 0))"
         ioevents = mimic_common.load_table(ioevents_schema, ioevents_cond)
-        icustayevents = mimic_common.load_table(icustayevents_schema)
-        return {'ioevents': ioevents, 'icustayevents': icustayevents}
+        return ioevents
 
     def _transform(self, tables):
         # filtering carevue ioevents
@@ -45,7 +42,7 @@ class VasopressorDays(Transform):
         
         # filtering metavision ioevents
         io_metavision = VasoIOEventsMetavision().transform(tables)
-
+        
         # concatenating ioevents
         ioevents = from_chunks([io_carevue, io_metavision])
 
@@ -69,12 +66,10 @@ class VasoIOEventsCarevue(Transform):
     vaso_ids_ser = pd.Series(index=valid_vaso_ids)
     for vaso, vaso_ids in vaso_mappings.items():
         vaso_ids_ser.loc[vaso_ids] = vaso
+    vaso_ids_ser = vaso_ids_ser.astype('category')
 
     def input_schema(self):
-        return MultiSchema({
-            'ioevents': PartialSchema.from_schema(ioevents_schema),
-            'icustayevents': PartialSchema.from_schema(icustayevents_schema)
-        })
+        return PartialSchema.from_schema(ioevents_schema)
 
     def output_schema(self):
         return cvs.vaso_days_input
@@ -83,33 +78,21 @@ class VasoIOEventsCarevue(Transform):
         ioevents_cond = "itemid in ( {} )".format(', '.join(map(str, sorted(self.valid_vaso_ids))))
         ioevents_cond += " and ((rate is not null and rate != 0) or (volume is not null and volume != 0))"
         ioevents = mimic_common.load_table(ioevents_schema, ioevents_cond)
-        icustayevents = CarevueFilter().load()
-        return {'ioevents': ioevents, 'icustayevents': icustayevents}
-
-    def _transform(self, tables):
-        icustayevents = CarevueFilter().transform(tables['icustayevents'])
-        icustay_ids = icustayevents['icustay_id'].unique()
-
-        ioevents = tables['ioevents']
-        ioevents = ioevents[ioevents['icustay_id'].isin(icustay_ids)]
-        ioevents = ioevents[ioevents['itemid'].isin(self.valid_vaso_ids)]
-        ioevents = ioevents[(ioevents['rate'] != 0) | (ioevents['volume'] != 0)]
-
-        ioevents['vaso_type'] = self.vaso_ids_ser.loc[ioevents['itemid']].values
-        ioevents['vaso_type'] = ioevents['vaso_type'].astype('category')
-        ioevents['date'] = ioevents['endtime'].dt.date
-        ioevents = ioevents[cvs.vaso_days_input.col_names()]
         return ioevents
 
-class CarevueFilter(Transform):
-    def input_schema(self):
-        return PartialSchema.from_schema(icustayevents_schema)
-
-    def _load(self):
-        return mimic_common.load_table(icustayevents_schema, "dbsource='mimic2v26'")
-
-    def _transform(self, icustayevents):
-        return icustayevents[icustayevents['dbsource'].isin(['mimic2v26'])]
+    def _transform(self, ioevents):
+        ioevents = ioevents[ioevents['itemid'].isin(self.valid_vaso_ids)]
+        ioevents = ioevents[(ioevents['rate'] != 0) | (ioevents['volume'] != 0)]
+        
+        ioevents['vaso_type'] = self.vaso_ids_ser.cat.codes.loc[ioevents['itemid']].values
+        ioevents['vaso_type'] = pd.Categorical.from_codes(
+            codes=ioevents['vaso_type'],
+            categories=self.vaso_ids_ser.cat.categories,
+            name='vaso_type'
+        )
+        ioevents['date'] = pd.to_datetime(ioevents['endtime'].dt.date)
+        ioevents = ioevents[cvs.vaso_days_input.col_names()]
+        return ioevents
 
 class VasoIOEventsMetavision(Transform):
     vaso_mappings = {
@@ -126,12 +109,10 @@ class VasoIOEventsMetavision(Transform):
     vaso_ids_ser = pd.Series(index=valid_vaso_ids)
     for vaso, vaso_ids in vaso_mappings.items():
         vaso_ids_ser.loc[vaso_ids] = vaso
+    vaso_ids_ser = vaso_ids_ser.astype('category')
 
     def input_schema(self):
-        return MultiSchema({
-            'ioevents': PartialSchema.from_schema(ioevents_schema),
-            'icustayevents': PartialSchema.from_schema(icustayevents_schema)
-        })
+        return PartialSchema.from_schema(ioevents_schema)
 
     def output_schema(self):
         return cvs.vaso_days_input
@@ -140,39 +121,26 @@ class VasoIOEventsMetavision(Transform):
         ioevents_cond = "itemid in ( {} )".format(', '.join(map(str, sorted(self.valid_vaso_ids))))
         ioevents_cond += " and ((rate is not null and rate != 0) or (volume is not null and volume != 0))"
         ioevents = mimic_common.load_table(ioevents_schema, ioevents_cond)
-        icustayevents = MetavisionFilter().load()
-        return {'ioevents': ioevents, 'icustayevents': icustayevents}
+        return ioevents
 
-    def _transform(self, tables):
-        icustayevents = MetavisionFilter().transform(tables['icustayevents'])
-
-        icustay_ids = icustayevents['icustay_id'].unique()
-
-        ioevents = tables['ioevents']
-        ioevents = ioevents[ioevents['icustay_id'].isin(icustay_ids)]
+    def _transform(self, ioevents):
         ioevents = ioevents[ioevents['itemid'].isin(self.valid_vaso_ids)]
         ioevents = ioevents[(ioevents['rate'] != 0) | (ioevents['volume'] != 0)]
 
-        ioevents['vaso_type'] = self.vaso_ids_ser.loc[ioevents['itemid']].values
-        ioevents['vaso_type'] = ioevents['vaso_type'].astype('category')
+        ioevents['vaso_type'] = self.vaso_ids_ser.cat.codes.loc[ioevents['itemid']].values
+        ioevents['vaso_type'] = pd.Categorical.from_codes(
+            codes=ioevents['vaso_type'],
+            categories=self.vaso_ids_ser.cat.categories,
+            name='vaso_type'
+        )
 
         ioevents['end_date'] = pd.to_datetime(ioevents['endtime'].dt.date)
         ioevents['start_date'] = pd.to_datetime(ioevents['starttime'].dt.date)
-
+        
         ioevents = ioevents[['subject_id', 'icustay_id', 'vaso_type', 'end_date', 'start_date']]
         ioevents = ExpandDateRange().transform(ioevents)
         ioevents = ioevents[cvs.vaso_days_input.col_names()]
         return ioevents
-
-class MetavisionFilter(Transform):
-    def input_schema(self):
-        return PartialSchema.from_schema(icustayevents_schema)
-
-    def _load(self):
-        return mimic_common.load_table(icustayevents_schema, "dbsource='metavision'")
-
-    def _transform(self, icustayevents):
-        return icustayevents[icustayevents['dbsource'].isin(['metavision'])]
 
 class ExpandDateRange(Transform):
     def input_schema(self):
@@ -183,16 +151,57 @@ class ExpandDateRange(Transform):
 
     def _transform(self, df):
         df['days'] = df['end_date'] - df['start_date'] + pd.Timedelta(days=1)
+        
+        invalid_range_mask = df['days'] < 1 #remove rows with invalid (negative) deltas
+        df = df[~invalid_range_mask]
+        
         max_days = ceil(df['days'].max().days)
         df['date'] = df['start_date']
+        del df['start_date'], df['end_date']
 
         expanded = [df]
+        expand_per_row = False
         for i in range(2, max_days):
             prev = expanded[-1]
             rows_as_long_as = prev[prev['days'] >= pd.Timedelta(days=i)]
             rows_as_long_as.loc[:, 'date'] += pd.Timedelta(days=1)
+
+            # if there are only a relative few rows remaining with long date ranges,
+            # it will be more efficient to expand them per-row rather than per-date-range
+            if len(rows_as_long_as) < max_days / len(rows_as_long_as.columns)**2:
+                expand_per_row = True
+                break
             expanded.append(rows_as_long_as)
 
+        #expand remaining rows per-row rather than per-date-range
+        if expand_per_row:
+            rala = rows_as_long_as
+            # represent any categorical columns as ints for fast expansion
+            rala_cat = rala.select_dtypes(include=['category'])
+            rala_categories = {}
+            for col in rala_cat.columns:
+                rala_categories[col] = rala[col].cat.categories
+                rala[col] = rala[col].cat.codes
+
+            # for each row, generate expanded rows as remaining days in the date range
+            for j, row in rala.iterrows():
+                date = row['date']
+                n_days = row['days'].days - i
+                expanded_row = pd.DataFrame(index=np.arange(n_days + 1), columns=row.index)
+                for col in expanded_row.columns:
+                    expanded_row[col] = row[col]
+                expanded_row['date'] = pd.date_range(date, date+pd.Timedelta(days=n_days))
+                
+                #convert numeric back to categorical
+                for col, categories in rala_categories.items():
+                    expanded_row[col] = pd.Categorical.from_codes(
+                        codes=expanded_row[col],
+                        categories=categories,
+                        name=col
+                    )
+                expanded.append(expanded_row)
+
+        # merge all extra rows
         df = from_chunks(expanded)
         return df
 
@@ -226,36 +235,8 @@ class VasoDayCounts(Transform):
         vaso_days = vaso_days.reset_index()
         return vaso_days
 
-
-
-### Incomplete work on ventilator and days til death transforms
-
-"""
-so this query gives you the number of ventilator days for each hospital admission
-
-with ventdays as
-(
-select SUBJECT_ID, HADM_ID
-, count(chartdate) as NumVentDays
-from mimic2v30.cptevents
-where COSTCENTER = 'Resp'
-and DESCRIPTION in 
-(
-'VENT MGMT, 1ST DAY (INVASIVE)'
-, 'VENT MGMT;SUBSQ DAYS(INVASIVE)'
-)
-group by SUBJECT_ID, HADM_ID
-)
-select adm.SUBJECT_ID, adm.HADM_ID
-, coalesce(ventdays.NumVentDays,0) as NumVentDays
-from mimic2v30.admissions adm
-left join ventdays
-    on adm.hadm_id = ventdays.hadm_id
-order by adm.subject_id, adm.hadm_id;"""
-
-class VentDays(Transform):
+class VentilatorDays(Transform):
     def __init__(self, subject_ids=None, hadm_ids=None):
-        super().__init__()
         if subject_ids is not None:
             subject_ids = list(subject_ids)
         self.subject_ids = subject_ids
@@ -276,7 +257,7 @@ class VentDays(Transform):
     def input_schema(self):
         return MultiSchema({
             'cptevents': PartialSchema.from_schema(cptevents_schema),
-            'admissions': PartialSchema.from_schema(admissions_schema)
+            'icustayevents': PartialSchema.from_schema(icustayevents_schema)
         })
 
     def _load(self):
@@ -287,29 +268,48 @@ class VentDays(Transform):
             conds.append('HADM_ID IN ( {} )'.format(', '.join(map(str, self.hadm_ids))))
 
         cpt_cond = ' and '.join(conds + [self.cpt_cond]) or None
-        cptevents = mimic_common.load_table(cptevents_schema, self.cpt_cond)
+        cptevents = mimic_common.load_table(cptevents_schema, cpt_cond)
 
-        adm_cond = ' and '.join(conds) or None
-        admissions = mimic_common.load_table(admissions_schema, adm_cond)
+        icu_cond = ' and '.join(conds) or None
+        icustayevents = mimic_common.load_table(icustayevents_schema, icu_cond)
 
-        return {'cptevents': cptevents, 'admissions': admissions}
+        return {'cptevents': cptevents, 'icustayevents': icustayevents}
 
     def _transform(self, tables):
-        grp = tables['cptevents'].groupby(['subject_id', 'hadm_id'])
+        cpt = tables['cptevents']
+        cpt = cpt[cpt['costcenter'].isin(['Resp'])]
+        cpt = cpt[cpt['description'].isin([
+            'VENT MGMT, 1ST DAY (INVASIVE)',
+            'VENT MGMT;SUBSQ DAYS(INVASIVE)'
+        ])]
+        cpt = cpt[['subject_id', 'hadm_id', 'chartdate']] #filter columns
+        icu = tables['icustayevents']
+
+        if self.subject_ids is not None:
+            cpt = cpt[cpt['subject_id'].isin(self.subject_ids)]
+            icu = icu[icu['subject_id'].isin(self.subject_ids)]
+        if self.hadm_ids is not None:
+            cpt = cpt[cpt['hadm_id'].isin(self.hadm_ids)]
+            icu = icu[icu['hadm_id'].isin(self.hadm_ids)]
+
+        #add icustay_id
+        df = AdmICUStayMapper().transform({
+            'icustayevents': icu,
+            'admissions': cpt
+        })
+
+        df = df[pd.to_datetime(df['intime'].dt.date) <= df['chartdate']]
+        df = df[pd.to_datetime(df['outtime'].dt.date) >= df['chartdate']]
+
+        grp = df.groupby(['subject_id', 'hadm_id', 'icustay_id'])
         ventdays = grp['chartdate'].nunique().reset_index()
-        ventdays.columns = ['ventdays.subject_id', 'ventdays.hadm_id', 'ventdays']
+        ventdays['ventdays'] = ventdays['chartdate'] * pd.Timedelta(days=1)
+        del ventdays['chartdate']
 
-        df = left_join(tables['admissions'], ventdays, left_on='hadm_id', right_on='ventdays.hadm_id')
-
-        df['ventdays'].fillna(0, inplace=True)
-        df.sort_index(by=['subject_id', 'hadm_id'], inplace=True)
-        return df
-
+        return ventdays
 
 class TimeUntilDeath(Transform):
     def __init__(self, subject_ids=None, hadm_ids=None):
-        super().__init__()
-        
         if subject_ids is not None:
             subject_ids = list(subject_ids)
         self.subject_ids = subject_ids
@@ -321,7 +321,8 @@ class TimeUntilDeath(Transform):
     def input_schema(self):
         return MultiSchema({
             'admissions': PartialSchema.from_schema(admissions_schema),
-            'patients': PartialSchema.from_schema(patients_schema)    
+            'patients': PartialSchema.from_schema(patients_schema),
+            'icustayevents': PartialSchema.from_schema(icustayevents_schema)
         })
 
     def _load(self):
@@ -329,31 +330,51 @@ class TimeUntilDeath(Transform):
         pat_cond = None
         if self.subject_ids is not None:
             pat_cond = 'SUBJECT_ID IN ( {} )'.format(', '.join(map(str, self.subject_ids)))
-            adm_conds.append(subj_cond)
+            adm_conds.append(pat_cond)
         if self.hadm_ids is not None:
             adm_conds.append('HADM_ID IN ( {} )'.format(', '.join(map(str, self.hadm_ids))))
-
         adm_cond = ' and '.join(adm_conds) or None
-        admissions = mimic_common.load_table(admissions_schema, adm_cond)
 
+        admissions = mimic_common.load_table(admissions_schema, adm_cond)
+        icustayevents = mimic_common.load_table(icustayevents_schema, adm_cond)
         patients = mimic_common.load_table(patients_schema, pat_cond)
 
-        return {'admissions': admissions, 'patients': patients}
+        return {'admissions': admissions, 'icustayevents': icustayevents, 'patients': patients}
 
     def _transform(self, tables):
-        patients = tables['patients']
-        patients_schema.add_prefix(patients)
+        pat = tables['patients']
+        adm = tables['admissions']
+        icu = tables['icustayevents']
 
-        admissions = tables['admissions']
-        admissions_schema.add_prefix(admissions)
+        if self.subject_ids is not None:
+            pat = pat[pat['subject_id'].isin(self.subject_ids)]
+            adm = adm[adm['subject_id'].isin(self.subject_ids)]
+            icu = icu[icu['subject_id'].isin(self.subject_ids)]
+        if self.hadm_ids is not None:
+            adm = adm[adm['hadm_id'].isin(self.hadm_ids)]
+            icu = icu[icu['hadm_id'].isin(self.hadm_ids)]
 
-        df = left_join(patients, admissions,
-            left_on='patients.subject_id',
-            right_on='admissions.subject_id')
+        df = left_join(pat, adm, 'subject_id')
 
-        df['hosdead'] = df['admissions.deathtime'].notnull()
-        df['time_of_death'] = df['patients.dod_hosp'].fillna(df['patients.dod_ssn'])
-        df['time_until_death'] = df['time_of_death'] - df['admissions.dischtime']
+        df['hosdead'] = df['deathtime'].notnull()
+        df['time_of_death'] = df['dod_hosp'].fillna(df['dod_ssn'])
+        df['time_until_death'] = df['time_of_death'] - df['dischtime']
 
+        df = AdmICUStayMapper().transform({
+            'icustayevents': icu,
+            'admissions': df
+        })
+
+        return df[['subject_id', 'hadm_id', 'icustay_id', 'hosdead', 'time_of_death', 'time_until_death']]
+
+class AdmICUStayMapper(Transform):
+    def input_schema(self):
+        return cvs.icu_hadm_map
+
+    def _transform(self, tables):
+        ie = tables['icustayevents']
+        adm = tables['admissions']
+
+        df = left_join(ie, adm, ['hadm_id', 'subject_id'])
         return df
 

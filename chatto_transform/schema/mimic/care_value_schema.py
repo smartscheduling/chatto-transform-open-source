@@ -30,3 +30,15 @@ vaso_days_output = Schema('vaso_days_output', [
     delta('vasopressin_days'),
     delta('total_vasopressor_days')
 ])
+
+icu_hadm_map = MultiSchema({
+    'icustayevents': PartialSchema('icustayevents', [
+        id_('hadm_id'),
+        id_('icustay_id'),
+        id_('subject_id')
+    ]),
+    'admissions': PartialSchema('admissions', [
+        id_('hadm_id'),
+        id_('subject_id'),
+    ])
+})

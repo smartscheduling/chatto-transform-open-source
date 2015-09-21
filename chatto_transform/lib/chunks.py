@@ -72,12 +72,16 @@ def left_join(left_df, right_df, on=None, left_on=None, right_on=None):
     elif left_on is None or right_on is None:
         raise TypeError('must specify either on or both left_on and right_on')
     
-    if hasattr(left_df[left_on], 'cat') and hasattr(right_df[right_on], 'cat'):
-        l_cat = left_df[left_on].cat.categories
-        r_cat = right_df[right_on].cat.categories
-        merged_cat = l_cat.union(r_cat)
-        left_df[left_on] = left_df[left_on].cat.set_categories(merged_cat)
-        right_df[right_on] = right_df[right_on].cat.set_categories(merged_cat)
+    if isinstance(left_on, str) and isinstance(right_on, str):
+        left_on = [left_on]
+        right_on = [right_on]
+    for l_col, r_col in zip(left_on, right_on):
+        if hasattr(left_df[l_col], 'cat') and hasattr(right_df[r_col], 'cat'):
+            l_cat = left_df[l_col].cat.categories
+            r_cat = right_df[r_col].cat.categories
+            merged_cat = l_cat.union(r_cat)
+            left_df[l_col] = left_df[l_col].cat.set_categories(merged_cat)
+            right_df[r_col] = right_df[r_col].cat.set_categories(merged_cat)
 
     cat_categories = {}
     for chunk in [left_df,  right_df]:
