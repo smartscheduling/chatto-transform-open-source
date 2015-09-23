@@ -308,8 +308,8 @@ class VentilatorDays(Transform):
 
         return ventdays
 
-class TimeUntilDeath(Transform):
-    def __init__(self, subject_ids=None, hadm_ids=None):
+class DaysUntilDeath(Transform):
+    def __init__(self, subject_ids=None, hadm_ids=None, icustay_ids=None):
         if subject_ids is not None:
             subject_ids = list(subject_ids)
         self.subject_ids = subject_ids
@@ -318,6 +318,10 @@ class TimeUntilDeath(Transform):
             hadm_ids = list(hadm_ids)
         self.hadm_ids = hadm_ids
 
+        if icustay_ids is not None:
+            icustay_ids = list(icustay_ids)
+        self.icustay_ids = icustay_ids       
+
     def input_schema(self):
         return MultiSchema({
             'admissions': PartialSchema.from_schema(admissions_schema),
@@ -325,21 +329,40 @@ class TimeUntilDeath(Transform):
             'icustayevents': PartialSchema.from_schema(icustayevents_schema)
         })
 
-    def _load(self):
+    def output_schema(self):
+        return cvs.days_until_death
+
+    def _load(self, incr_data=None):
+        if incr_data is None:
+            incr_data = {}
+
         adm_conds = []
+        icu_conds = []
         pat_cond = None
         if self.subject_ids is not None:
             pat_cond = 'SUBJECT_ID IN ( {} )'.format(', '.join(map(str, self.subject_ids)))
             adm_conds.append(pat_cond)
+            icu_conds.append(pat_cond)
         if self.hadm_ids is not None:
-            adm_conds.append('HADM_ID IN ( {} )'.format(', '.join(map(str, self.hadm_ids))))
-        adm_cond = ' and '.join(adm_conds) or None
+            adm_cond = 'HADM_ID IN ( {} )'.format(', '.join(map(str, self.hadm_ids)))
+            adm_conds.append(adm_cond)
+            icu_conds.append(adm_cond)
+        if self.icustay_ids is not None:
+            icu_cond = 'ICUSTAY_ID IN ( {} )'.format(', '.join(map(str, self.icustay_ids)))
+            icu_conds.append(icu_cond)
 
-        admissions = mimic_common.load_table(admissions_schema, adm_cond)
-        icustayevents = mimic_common.load_table(icustayevents_schema, adm_cond)
-        patients = mimic_common.load_table(patients_schema, pat_cond)
+        if 'admissions' not in incr_data:
+            adm_cond = ' and '.join(adm_conds) or None
+            incr_data['admissions'] = mimic_common.load_table(admissions_schema, adm_cond)
+        
+        if 'icustayevents' not in incr_data:
+            icu_cond = ' and '.join(icu_conds) or None
+            incr_data['icustayevents'] = mimic_common.load_table(icustayevents_schema, icu_cond)
+        
+        if 'patients' not in incr_data:
+            incr_data['patients'] = mimic_common.load_table(patients_schema, pat_cond)
 
-        return {'admissions': admissions, 'icustayevents': icustayevents, 'patients': patients}
+        return incr_data
 
     def _transform(self, tables):
         pat = tables['patients']
@@ -353,10 +376,12 @@ class TimeUntilDeath(Transform):
         if self.hadm_ids is not None:
             adm = adm[adm['hadm_id'].isin(self.hadm_ids)]
             icu = icu[icu['hadm_id'].isin(self.hadm_ids)]
+        if self.icustay_ids is not None:
+            icu = icu[icu['icustay_id'].isin(self.icustay_ids)]
 
         df = left_join(pat, adm, 'subject_id')
 
-        df['hosdead'] = df['deathtime'].notnull()
+        df['hadm_death'] = df['deathtime'].notnull()
         df['time_of_death'] = df['dod_hosp'].fillna(df['dod_ssn'])
         df['time_until_death'] = df['time_of_death'] - df['dischtime']
 
@@ -365,7 +390,9 @@ class TimeUntilDeath(Transform):
             'admissions': df
         })
 
-        return df[['subject_id', 'hadm_id', 'icustay_id', 'hosdead', 'time_of_death', 'time_until_death']]
+        df['icustay_death'] = (df['deathtime'] >= df['intime']) & (df['deathtime'] <= df['outtime'])
+
+        return df[['subject_id', 'hadm_id', 'icustay_id', 'icustay_death', 'hadm_death', 'time_of_death', 'time_until_death']]
 
 class AdmICUStayMapper(Transform):
     def input_schema(self):

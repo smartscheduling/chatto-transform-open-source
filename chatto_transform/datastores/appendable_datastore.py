@@ -2,6 +2,7 @@ import os.path
 from contextlib import suppress
 import os
 import gc
+import csv
 
 import pandas as pd
 
@@ -41,7 +42,9 @@ class AppendableHdfDataStore(DataStore):
 
     def _load_categories(self, col):
         cat_file = self._get_category_file(col)
-        cat_df = pd.read_csv(cat_file, header=None, names=['categories'])
+        cat_df = pd.read_csv(cat_file, header=None, names=['categories'], dtype=str)
+        if cat_df['categories'].dtype != 'object':
+            cat_df['categories'] = cat_df['categories'].astype(str)
         return cat_df['categories']
 
     def _add_categories(self, col, categories, append=True):

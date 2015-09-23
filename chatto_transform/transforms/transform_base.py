@@ -3,13 +3,16 @@ from chatto_transform.schema.schema_base import *
 class Transform:
     """Base class for the Transform abstraction.
     A Transform captures the procedures for loading and transforming data from one form to another."""
-    
-    def load(self):
-        result = self._load()
+
+    def load(self, incremental_data=None):
+        args = []
+        if incremental_data is not None:
+            args.append(incremental_data)
+        result = self._load(*args)
         self.input_schema().conform_df(result)
         return result
 
-    def _load(self):
+    def _load(self, incremental_data=None):
         raise NotImplementedError()
 
     def transform(self, data):
@@ -29,8 +32,8 @@ class Transform:
     def output_schema(self):
         return PartialSchema()
 
-    def load_transform(self):
-        data = self.load()
+    def load_transform(self, incremental_data=None):
+        data = self.load(incremental_data)
         return self.transform(data)
 
 class _InlineTransform(Transform):

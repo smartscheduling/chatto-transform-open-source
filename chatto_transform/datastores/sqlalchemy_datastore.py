@@ -398,10 +398,10 @@ class SAJoinDataStore(DataStore):
 class SAQueryDataStore(DataStore):
     def __init__(self, schema, engine, query):
         self.engine = engine
-        self.query = query
+        self.query = query.compile()
+        self.query.bind = self.engine
         self.schema = schema
 
     def _load(self):
-        df = pandas.read_sql(self.query, self.engine)
-        
+        df = fast_sql_to_df(self.query, self.schema)
         return df

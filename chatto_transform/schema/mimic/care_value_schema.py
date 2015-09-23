@@ -42,3 +42,13 @@ icu_hadm_map = MultiSchema({
         id_('subject_id'),
     ])
 })
+
+days_until_death = PartialSchema('days_until_death', [
+    id_('subject_id'),
+    id_('hadm_id'),
+    id_('icustay_id'),
+    bool_('icustay_death'),
+    bool_('hadm_death'),
+    dt('time_of_death'),
+    delta('time_until_death')
+])

@@ -1,6 +1,6 @@
 from chatto_transform.sessions.mimic import mimic_login, mimic_widgets
 
-from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore
+from chatto_transform.datastores.sqlalchemy_datastore import SATableDataStore, SAQueryDataStore
 from chatto_transform.datastores.appendable_datastore import AppendableHdfDataStore
 from chatto_transform.datastores.hdf_datastore import HdfDataStore
 from chatto_transform.datastores.csv_datastore import CsvDataStore
@@ -10,6 +10,7 @@ from chatto_transform.schema.schema_base import PartialSchema
 
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
+from psycopg2 import ProgrammingError
 
 import pandas as pd
 
@@ -21,7 +22,20 @@ import unicodedata
 import re
 import os.path
 import shelve
+import contextlib
+import traceback
+import sys
 
+class SQLError(Exception):
+    pass
+
+@contextlib.contextmanager
+def sql_exception():
+    try:
+        yield
+    except ProgrammingError as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_exception(SQLError, exc_value, None)
 
 def slugify(value):
     """
@@ -38,6 +52,9 @@ def _get_table_loader(schema, condition=None):
     loader = SATableDataStore(schema, mimic_login.get_engine(), condition)
     return loader
 
+def _get_sql_loader(sql):
+    loader = SAQueryDataStore(PartialSchema('query'), mimic_login.get_engine(), text(sql))    
+    return loader
 
 ### Data loading
 
@@ -62,8 +79,14 @@ def load_table(schema, condition=None):
         query_f_name = os.path.join(local_storage_dir, query_f_name)
         cache = AppendableHdfDataStore(schema, query_f_name)
         loader = CachingDataStore(schema, loader, cache)
-        
-    return loader.load()
+    
+    with sql_exception():
+        return loader.load()
+
+def load_sql(sql):
+    loader = _get_sql_loader(sql)
+    with sql_exception():
+        return loader.load()
 
 def store_csv(schema, condition=None):
     file_name = schema.name
@@ -101,6 +124,19 @@ def df_to_hdf5(file_name, df):
 
 ### Widget common usage
 
+selected_medications = []
+
+def select_medications():
+    ms = mimic_widgets.meditems_multiselect()
+    b = widgets.Button(description='Execute')
+
+    display(ms, b)
+
+    @b.on_click
+    def on_button_clicked(b):
+        nonlocal selected_medications
+        selected_medications = ms.value
+
 def download_table():
     ss = mimic_widgets.schema_select()
     c = mimic_widgets.where_clause_text()
@@ -130,4 +166,21 @@ def query():
         result = load_table(ss.value, c.value or None)
         loaded_tables[ss.value.name] = result
         print('Loaded', ss.value.name, 'and stored in loaded_tables["{}"]'.format(ss.value.name))
+
+loaded_sql = []
+
+def sql():
+    tb = mimic_widgets.query_text_box()
+    b = widgets.Button(description='Execute')
+
+    display(tb)
+    display(b)
+
+    @b.on_click
+    def on_button_clicked(b):
+        result = load_sql(tb.value)
+        loaded_sql.append(result)
+        print('Loaded', tb.value, 'and stored in loaded_sql[{}]'.format(len(loaded_sql) - 1))
+
+
 

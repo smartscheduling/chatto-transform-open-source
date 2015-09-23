@@ -172,7 +172,7 @@ class PartialSchema(Schema):
             missing = set(self.col_names()) - set(df.columns) 
             raise TypeError('some columns missing form partial schema: {}'.format(missing))
 
-        for col in self._inferred_cols(df):
+        for col in self._inferred_cols(df, self.cols):
             if isinstance(col, Column):
                 col.conform(df, storage_target=storage_target)
 
@@ -188,13 +188,16 @@ class PartialSchema(Schema):
         if add_prefix:
             self.add_prefix(df)
 
-    def _inferred_cols(self, df):
+    @classmethod
+    def _inferred_cols(cls, df, skip_cols=None):
+        if skip_cols is None:
+            skip_cols = []
+        skip_col_names = [col.name for col in skip_cols]
         cols = []
-        col_names = self.col_names()
         for column in df.columns:
-            if column in col_names:
-                ind = col_names.index(column)
-                cols.append(self.cols[ind])
+            if column in skip_col_names:
+                ind = skip_col_names.index(column)
+                cols.append(skip_cols[ind])
                 continue
             for col_type in [num, dt, delta, cat]:
                 col = col_type(column)
@@ -203,12 +206,12 @@ class PartialSchema(Schema):
                     break
             else:
                 cols.append(cat(column))
-        return cols
+        return cols    
 
     @classmethod
-    def from_df(cls, df):
+    def from_df(cls, df, name=None):
         cols = cls._inferred_cols(df)
-        return cls(cols=cols)
+        return cls(name=name, cols=cols)
 
     @classmethod
     def from_schema(cls, schema):
