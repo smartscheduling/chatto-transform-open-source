@@ -51,8 +51,13 @@ class AppendableHdfDataStore(DataStore):
         cat_file = self._get_category_file(col)
         cat_df = pd.DataFrame()
         cat_df['categories'] = categories
-        with open(cat_file, 'a') as f:
-            cat_df.to_csv(f, index=False, header=False)
+        
+        if self._any_categories(col):
+            mode = 'a'
+        else:
+            mode = 'w'
+
+        cat_df.to_csv(cat_file, mode=mode, index=False, header=False)
 
     def _get_store(self):
         return pd.HDFStore(self.hdf_file, complevel=9, complib='blosc')
