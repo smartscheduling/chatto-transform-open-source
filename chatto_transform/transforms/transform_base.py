@@ -17,6 +17,9 @@ class Transform:
 
     def transform(self, data):
         data = data.copy()
+        if isinstance(data, dict):
+            for k, df in data.items():
+                data[k] = df.copy()
         self.input_schema().conform_df(data)
         result = self._transform(data)
         del data

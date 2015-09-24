@@ -398,10 +398,21 @@ class AdmICUStayMapper(Transform):
     def input_schema(self):
         return cvs.icu_hadm_map
 
+    def _load(self, incr_data=None):
+        if incr_data is None:
+            incr_data = {}
+
+        if 'icustayevents' not in incr_data:
+            incr_data['icustayevents'] = mimic_common.load_table(mimic_schema.icustayevents_schema)
+
+        if 'admissions' not in incr_data:
+            incr_data['admissions'] = mimic_common.load_table(mimic_schema.admissions_schema)
+
+        return incr_data
+
     def _transform(self, tables):
         ie = tables['icustayevents']
         adm = tables['admissions']
-
         df = left_join(ie, adm, ['hadm_id', 'subject_id'])
         return df
 

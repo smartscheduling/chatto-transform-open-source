@@ -1,10 +1,10 @@
 from chatto_transform.transforms.transform_base import Transform
 from chatto_transform.schema.schema_base import MultiSchema, PartialSchema
-from chatto_transform.schema.mimic import mimic_schema
+from chatto_transform.schema.mimic import mimic_schema, cohorts_schema
 from chatto_transform.lib.chunks import left_join
 from chatto_transform.sessions.mimic import mimic_common
 
-from chatto_transform.transforms.mimic.care_value import DaysUntilDeath
+from chatto_transform.transforms.mimic.care_value import DaysUntilDeath, AdmICUStayMapper
 
 import pandas as pd
 
@@ -19,13 +19,18 @@ class LabItemFilter(Transform):
             lab_item_ids = list(lab_item_ids)
         self.lab_item_ids = lab_item_ids
 
-    def _load(self):
-        cond = 'itemid IN ( {} )'.format(', '.join(map(str, self.lab_item_ids)))
-        labevents = mimic_common.load_table(mimic_schema.labevents_schema, cond)
+    def _load(self, incr_data=None):
+        if incr_data is None:
+            incr_data = {}
 
-        icustayevents = mimic_common.load_table(mimic_schema.icustayevents_schema)
+        if 'labevents' not in incr_data:
+            cond = 'itemid IN ( {} )'.format(', '.join(map(str, self.lab_item_ids)))
+            incr_data['labevents'] = mimic_common.load_table(mimic_schema.labevents_schema, cond)
 
-        return {'labevents': labevents, 'icustayevents': icustayevents}
+        if 'icustayevents' not in incr_data:
+            incr_data['icustayevents'] = mimic_common.load_table(mimic_schema.icustayevents_schema)
+
+        return incr_data
 
     def input_schema(self):
         return MultiSchema({
@@ -58,13 +63,18 @@ class IOItemsFilter(Transform):
             ioevent_item_ids = list(ioevent_item_ids)
         self.ioevent_item_ids = ioevent_item_ids
 
-    def _load(self):
-        cond = 'itemid IN ( {} )'.format(', '.join(map(str, self.ioevent_item_ids)))
-        ioevents = mimic_common.load_table(mimic_schema.ioevents_schema, cond)
+    def _load(self, incr_data=None):
+        if incr_data is None:
+            incr_data = {}
 
-        icustayevents = mimic_common.load_table(mimic_schema.icustayevents_schema)
+        if 'ioevents' not in incr_data:
+            cond = 'itemid IN ( {} )'.format(', '.join(map(str, self.ioevent_item_ids)))
+            incr_data['ioevents'] = mimic_common.load_table(mimic_schema.ioevents_schema, cond)
 
-        return {'ioevents': ioevents, 'icustayevents': icustayevents}
+        if 'icustayevents' not in incr_data:
+            incr_data['icustayevents'] = mimic_common.load_table(mimic_schema.icustayevents_schema)
+
+        return incr_data
 
     def input_schema(self):
         return MultiSchema({
@@ -84,7 +94,7 @@ class IOItemsFilter(Transform):
 
 
 class DeathFilter(Transform):
-    def __init__(self, icustay_death=True, hadm_death=True, death_within_12mo=True):
+    def __init__(self, icustay_death=False, hadm_death=False, death_within_12mo=False):
         self.icustay_death = icustay_death
         self.hadm_death = hadm_death
         self.death_within_12mo = death_within_12mo
@@ -104,11 +114,7 @@ class DeathFilter(Transform):
         return ids
 
     def _load(self, incr_data=None):
-        if incr_data is not None and 'icustayevents' in incr_data:
-            unique_ids = self.unique_ids_from_icustayevents(incr_data['icustayevents'])
-        else:
-            unique_ids = {}
-        return DaysUntilDeath(**unique_ids).load(incr_data)
+        return DaysUntilDeath().load(incr_data)
 
     def _transform(self, tables):
         icustayevents = tables['icustayevents']
@@ -128,4 +134,45 @@ class DeathFilter(Transform):
         return icustayevents[icustayevents['icustay_id'].isin(remaining_icustay_ids)]
 
 
+class CohortSummary(Transform):
+    def input_schema(self):
+        return MultiSchema({
+            'admissions': PartialSchema.from_schema(mimic_schema.admissions_schema),
+            'patients': PartialSchema.from_schema(mimic_schema.patients_schema),
+            'icustayevents': PartialSchema.from_schema(mimic_schema.icustayevents_schema)
+        })
+
+    def output_schema(self):
+        return cohorts_schema.cohort_summary_schema
+
+    def _load(self, incr_data=None):
+        return DaysUntilDeath().load(incr_data)
+
+    def _transform(self, tables):
+        summary_columns = cohorts_schema.cohort_summary_schema.col_names()
+        s = pd.Series(index=summary_columns)
+
+        icu = tables['icustayevents']
+        s.loc['icustays'] = icu['icustay_id'].nunique()
+        s.loc['hadms'] = icu['hadm_id'].nunique()
+        s.loc['patients'] = icu['subject_id'].nunique()
+
+        death_df = DaysUntilDeath().transform(tables)
+        s.loc['icustay_deaths'] = death_df['icustay_death'].sum()
+        s.loc['hadm_deaths'] = death_df['hadm_death'].sum()
+        s.loc['12mo_deaths'] = (death_df['time_until_death'] <= pd.Timedelta(days=365)).sum()
+
+        s.loc['first_careunits'] = icu['first_careunit'].nunique()
+        s.loc['last_careunits'] = icu['last_careunit'].nunique()
+
+        s.loc['avg_icu_los'] = (icu['outtime'] - icu['intime']).mean()
+        
+        hadm = AdmICUStayMapper().load_transform({
+            'admissions': tables['admissions'],
+            'icustayevents': icu
+        })
+        s.loc['avg_hadm_los'] = (hadm['dischtime'] - hadm['admittime']).mean()
+        
+        result = pd.DataFrame([s], index=['summary'])
+        return result
 

@@ -38,7 +38,43 @@ def meditems_multiselect():
     meditems = pd.read_csv(f)
     meditems = meditems.sort_index(by='name')[['name', 'itemid']]
     m_options = OrderedDict(meditems.to_records(index=False))
-    return widgets.SelectMultiple(
+    w = widgets.SelectMultiple(
         description='Medications',
         options=m_options
     )
+
+    @w.on_displayed
+    def on_displayed(w):
+        w.selected_labels = [meditems.ix[0, 'name']]
+
+    return w
+
+def labitems_multiselect():
+    d = os.path.dirname(__file__)
+    f = os.path.join(d, 'labitems.csv')
+    labitems = pd.read_csv(f)
+    labitems = labitems.sort_index(by='name')[['name', 'itemid']]
+    l_options = OrderedDict(labitems.to_records(index=False))
+    w = widgets.SelectMultiple(
+        description='Lab Events',
+        options=l_options
+    )
+
+    @w.on_displayed
+    def on_displayed(w):
+        w.selected_labels = [labitems.ix[0, 'name']]
+
+    return w
+
+def death_multiselect():
+    d_options = OrderedDict()
+    d_options['Died during ICU stay'] = 'icustay_death'
+    d_options['Died during hospital admission'] = 'hadm_death'
+    d_options['Died within 12 months of hospital admission'] = 'death_within_12mo'
+
+    return widgets.RadioButtons(
+        description='Death',
+        options=d_options
+    )
+
+    

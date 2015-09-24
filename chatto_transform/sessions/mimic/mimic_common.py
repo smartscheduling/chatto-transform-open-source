@@ -13,6 +13,8 @@ from sqlalchemy.sql import text
 from psycopg2 import ProgrammingError
 
 import pandas as pd
+pd.options.display.max_columns = 10
+pd.options.display.max_rows = 10
 
 from IPython.display import FileLink, display
 from ipywidgets import interact
@@ -25,6 +27,9 @@ import shelve
 import contextlib
 import traceback
 import sys
+
+import warnings
+warnings.filterwarnings('ignore')
 
 class SQLError(Exception):
     pass
@@ -124,19 +129,6 @@ def df_to_hdf5(file_name, df):
 
 ### Widget common usage
 
-selected_medications = []
-
-def select_medications():
-    ms = mimic_widgets.meditems_multiselect()
-    b = widgets.Button(description='Execute')
-
-    display(ms, b)
-
-    @b.on_click
-    def on_button_clicked(b):
-        nonlocal selected_medications
-        selected_medications = ms.value
-
 def download_table():
     ss = mimic_widgets.schema_select()
     c = mimic_widgets.where_clause_text()
@@ -151,7 +143,6 @@ def download_table():
         display(store_csv(ss.value, c.value or None))
 
 loaded_tables = {}
-
 def query():
     ss = mimic_widgets.schema_select()
     c = mimic_widgets.where_clause_text()
@@ -168,7 +159,6 @@ def query():
         print('Loaded', ss.value.name, 'and stored in loaded_tables["{}"]'.format(ss.value.name))
 
 loaded_sql = []
-
 def sql():
     tb = mimic_widgets.query_text_box()
     b = widgets.Button(description='Execute')
@@ -181,6 +171,5 @@ def sql():
         result = load_sql(tb.value)
         loaded_sql.append(result)
         print('Loaded', tb.value, 'and stored in loaded_sql[{}]'.format(len(loaded_sql) - 1))
-
 
 
