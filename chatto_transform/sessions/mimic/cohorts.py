@@ -11,34 +11,16 @@ import pandas as pd
 
 class Cohort:
     def __init__(self):
+        self.icustay_detail_filters = {
+            'age': None,
+            'elective_surgery': None,
+            'emergency_surgery': None,
+            'age_group': None
+        }
         self.medications = None
         self.labevents = None
         self.death = None
-
-
-    """
-    Results
-    Count of icustayevents
-    Count of Unique patients
-
-    Aggregate
-        gender
-        died (3 mortality flags)
-
-        --
-
-        first careunit location/ service
-        last careunit location/ service
-
-        Count of each unique DRG and ICD-9 code
-
-    Average
-        Age
-        SAPS - first/min/max
-        SOFA first /min/max
-        icu length of stay
-        hosp length of stay
-    """
+        self.icd9_codes = None
 
     summary_fields = [
         'ICU stays',
@@ -76,6 +58,10 @@ class Cohort:
             incr_result = {'icustayevents': icustayevents}
         if self.death is not None:
             icustayevents = self.death.load_transform(incr_result)
+            incr_result = {'icustayevents': icustayevents}
+        if self.icd9_codes is not None:
+            icd9_codes = self.icd9_codes.load_transform()
+            icustayevents = cohorts.Icd9Filter(icd9_codes['icd9_codes'].values).load_transform(incr_result)           
             incr_result = {'icustayevents': icustayevents}
 
         if incr_result is None:
@@ -128,4 +114,47 @@ class Cohort:
             result.value = 'Selected {} death filter'.format(ds.value)
 
             ds.disabled = True
+            b.disabled = True
+
+    def filter_age(self):
+        self.icustay_detail_filters['age'] = None
+        f = mimic_widgets.num_range_filter()
+        b = widgets.Button(description='Execute')
+        result = widgets.HTML(value="")
+        display(f, b, result)
+
+        @b.on_click
+        def on_button_clicked(b):
+            self.icustay_detail_filters['age'] = f
+            result.value = 'Selected age range'
+            f.disabled = True
+            b.disabled = True
+
+    def filter_age_group(self):
+        self.icustay_detail_filters['age_group'] = None
+        f = mimic_widgets.cat_select(['neonate', 'middle', 'adult'])
+        b = widgets.Button(description='Execute')
+        result = widgets.HTML(value="")
+        display(f, b, result)
+
+        @b.on_click
+        def on_button_clicked(b):
+            self.icustay_detail_filters['age_group'] = f
+            result.value = 'Selected age group'
+            f.disabled = True
+            b.disabled = True
+
+    def filter_icd9_codes(self):
+        self.icd9_codes = None
+        t = widgets.HTML('Enter ICD9 Code and (Use % for wildcards)')
+        f = mimic_widgets.multi_text_match()
+        b = widgets.Button(description='Execute')
+        result = widgets.HTML(value="")
+        display(t, f, b, result)
+
+        @b.on_click
+        def on_button_clicked(b):
+            self.icd9_codes = cohorts.Icd9Matcher(f)
+            result.value = 'Selected ICD9 codes'
+            f.disabled = True
             b.disabled = True

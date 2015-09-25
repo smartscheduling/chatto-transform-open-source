@@ -25,3 +25,17 @@ cohort_summary_schema = Schema('cohort_summary', [
     delta('avg_icu_los'),
     delta('avg_hadm_los')
 ])
+
+icustay_detail_schema = Schema('icustay_detail', [
+    delta('pre_icu_los'),
+    dt('intime'),
+    dt('outtime'),
+    dt('deathtime'),
+    delta('age'),
+    bool_('elective_surgery'),
+    bool_('emergency_surgery'),
+    cat('age_group'),
+    cat('diagnosis'),
+    bool_('icustay_expire_flag'),
+    bool_('hospital_expire_flag')
+])

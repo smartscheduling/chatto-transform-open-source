@@ -135,8 +135,12 @@ class AppendableHdfDataStore(DataStore):
 
     def _load(self):
         store = self._get_store()
-        df = store[self.schema.name]
-        store.close()
+        try:
+            df = store[self.schema.name]
+        except KeyError: #its empty
+            df = pandas.DataFrame(columns=self.hdf_schema.col_names())
+        finally:
+            store.close()
 
         for col in self._categorical_cols():
             if self._any_categories(col):
