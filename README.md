@@ -28,7 +28,7 @@ NOTE: Use the link for Python 3.4, NOT 2.7.
 
 - Install the dependencies. `cd` into the top-level directory of the repo, and run:
 
-  `conda install chatto-transform-1.0-np19_0.tar.bz2` and type 'y' when prompted.
+  `bash install_dependencies.sh` and type 'y' when prompted.
 
 - Add chatto-transform to your PYTHONPATH environment variable. Edit your .bashrc file or equivalent, and add the line:
 
@@ -57,16 +57,19 @@ You must have permission to access the MIMIC database already, and you should ha
 
   `mkdir chatto_transform/config`
 
-- Create a new file here called `mimic_config.py` and write your username and password as follows:
+- Create a new file here called `mimic_config.py` and add lines for connecting to the database and using local storage. 
+- Set the variable `local_storage_dir` to a path to a directory on your computer where you want chatto-transform to store data.
+- Set `mimic_psql_config` to a valid [configuration uri](http://docs.sqlalchemy.org/en/rel_1_0/core/engines.html#postgresql) for SQL Alchemy
+- Mine looks like this:
 
   ````
-  username = 'your username'
-  password = 'your password'
+  local_storage_dir = '/Users/dan/dev/data/mimic3_local_storage'
+  mimic_psql_config = 'postgresql://dan:@localhost:5432/mimiciii?client_encoding=utf8'
   ````
 
   NOTE: never let your username and password get online. Chatto-transform will not let you commit anything inside the `config/` directory to git. Make sure your password doesn't show up anywhere else in the code.
 
-- Save it and you should be good to go. Before using any of the MIMIC transforms or trying to load mimic tables, remember to call `session.login()`.
+- Save it and you should be good to go.
  
 
 # Demo Notebook
