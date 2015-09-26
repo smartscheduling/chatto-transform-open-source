@@ -32,7 +32,7 @@ NOTE: Use the link for Python 3.4, NOT 2.7.
 
 - Add chatto-transform to your PYTHONPATH environment variable. Edit your .bashrc file or equivalent, and add the line:
 
-  `export PYTHONPATH='/Path/to/chatto-transform:$PYTHONPATH'`
+  `export PYTHONPATH="/Path/to/chatto-transform:$PYTHONPATH"`
 
   NOTE: replace Path/to/chatto-transform with your actual path to the repo.
 
