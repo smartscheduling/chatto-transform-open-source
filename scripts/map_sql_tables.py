@@ -1,7 +1,7 @@
 from chatto_transform.schema.schema_base import *
 
 from chatto_transform.datastores.sqlalchemy_datastore import get_reflected_metadata, table_as_schema
-from chatto_transform.config import config
+from chatto_transform.config import config, mimic_config
 import argparse
 from sqlalchemy import create_engine
 
@@ -15,7 +15,7 @@ parser.add_argument('--filename', required=True)
 
 if __name__ == '__main__':
 	args = parser.parse_args()
-	engine = create_engine(config.mimic_psql_config)
+	engine = create_engine(mimic_config.mimic_psql_config)
 	
 	metadata = get_reflected_metadata(engine, schema_name=args.schema)
 	if args.all_tables:
