@@ -24,7 +24,7 @@ NOTE: Use the link for Python 3.4, NOT 2.7.
 
 - Clone this repository:
 
-  `git clone git@github.com:smartscheduling/chatto-transform-open-source.git`
+  `git clone https://github.com/smartscheduling/chatto-transform-open-source.git`
 
 - Install the dependencies. `cd` into the top-level directory of the repo, and run:
 
