@@ -29,7 +29,7 @@ def _(col):
 
 @cat.register_metadata('csv_dtype')
 def _(self):
-    return (self.name, 'object')
+    return (self.name, str)
 
 @id_.register_metadata('csv_dtype')
 def _(self):
@@ -48,6 +48,7 @@ def _(self):
 def _(self):
     return (self.name, 'float64')
 
+CHUNK_SIZE = 5000000
 
 class CsvDataStore(DataStore):
     def __init__(self, schema, file, compress=False, with_header=True, na_values=None):
@@ -80,6 +81,28 @@ class CsvDataStore(DataStore):
             if isinstance(col, dt):
                 df[col.name] = pandas.to_datetime(df[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
         return df
+
+    def _load_chunks(self):
+        if self.compress:
+            compression = 'gzip'
+        else:
+            compression = None
+
+        dtype_dict = dict(col.metadata('csv_dtype') for col in self.schema.cols)
+
+        kwargs = {}
+        if not self.with_header:
+            kwargs['header'] = None
+            kwargs['names'] = self.schema.col_names()
+        if self.na_values is not None:
+            kwargs['na_values'] = self.na_values
+
+        chunks = pandas.read_csv(self.file, compression=compression, dtype=dtype_dict, chunksize=CHUNK_SIZE, **kwargs)
+        for chunk in chunks:
+            for col in self.schema.cols:
+                if isinstance(col, dt):
+                    chunk[col.name] = pandas.to_datetime(chunk[col.name], format="%Y-%m-%d %H:%M:%S", coerce=True)
+            yield chunk
 
     def _store(self, df):
         if self.compress:

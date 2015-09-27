@@ -332,7 +332,7 @@ def _(col):
 
     cats = col.cat.categories
     if cats.dtype != 'object':
-        col = col.cat.categories = cats.astype(str)
+        col = col.cat.set_categories(cats.astype(str))
     return col
 
 ###############################################################################
